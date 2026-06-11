@@ -10,17 +10,31 @@ interface AuthModalProps {
 }
 
 type AuthMode = "login" | "signup" | "forgot";
+type ForgotStep = "email" | "otp" | "password" | "success";
 
 export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "login" }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [isResetSent, setIsResetSent] = useState(false);
+  const [forgotStep, setForgotStep] = useState<ForgotStep>("email");
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const authInputClass =
     "appearance-none bg-surface-container-high bg-clip-padding border-0 ring-1 ring-inset ring-surface-variant rounded-lg p-3 text-body-md focus:outline-none focus:ring-primary transition-colors text-on-surface-variant [-webkit-text-fill-color:var(--color-on-surface-variant)] autofill:bg-clip-padding autofill:shadow-[0_0_0_1000px_var(--color-surface-container-high)_inset] autofill:[-webkit-text-fill-color:var(--color-on-surface-variant)]";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "forgot") {
-      setIsResetSent(true);
+      if (forgotStep === "email") {
+        setForgotStep("otp");
+      } else if (forgotStep === "otp") {
+        setForgotStep("password");
+      } else if (forgotStep === "password") {
+        setForgotStep("success");
+      } else if (forgotStep === "success") {
+        switchMode("login");
+      }
       return;
     }
 
@@ -31,7 +45,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
 
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
-    setIsResetSent(false);
+    setForgotStep("email");
   };
 
   // Close on ESC key
@@ -71,12 +85,22 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
             <h2 className="font-display text-headline-md text-white font-bold tracking-tight">
               {mode === "login" && "Sign In"}
               {mode === "signup" && "Join Gamelog"}
-              {mode === "forgot" && "Reset Password"}
+              {mode === "forgot" && (
+                forgotStep === "email" ? "Reset Password" :
+                forgotStep === "otp" ? "Verify OTP" :
+                forgotStep === "password" ? "New Password" :
+                "Success!"
+              )}
             </h2>
             <p className="text-body-md text-on-surface-variant mt-1">
               {mode === "login" && "Welcome back to the community."}
               {mode === "signup" && "The social network for game lovers."}
-              {mode === "forgot" && "Enter your email and we will send you a reset link."}
+              {mode === "forgot" && (
+                forgotStep === "email" ? "Enter your email to receive a verification code." :
+                forgotStep === "otp" ? `We've sent a 6-digit code to ${email || "your email"}.` :
+                forgotStep === "password" ? "Choose a strong password for your account." :
+                "Your password has been reset successfully."
+              )}
             </p>
           </div>
 
@@ -93,41 +117,83 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Email Address</label>
-              <input 
-                type="email" 
-                className={authInputClass}
-                placeholder="name@example.com"
-                required
-              />
-            </div>
-
-            {mode !== "forgot" && (
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Password</label>
-                {mode === "login" && (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("forgot")}
-                    className="text-label-sm text-primary hover:underline transition-all"
-                  >
-                    Forgot?
-                  </button>
-                )}
+            {(mode === "login" || mode === "signup" || (mode === "forgot" && forgotStep === "email")) && (
+              <div className="flex flex-col gap-2">
+                <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Email Address</label>
+                <input 
+                  type="email" 
+                  className={authInputClass}
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-              <input 
-                type="password" 
-                className={authInputClass}
-                placeholder="••••••••"
-              />
-            </div>
             )}
 
-            {mode === "forgot" && isResetSent && (
-              <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-body-md text-on-surface">
-                Check your inbox for a password reset link.
+            {mode === "forgot" && forgotStep === "otp" && (
+              <div className="flex flex-col gap-2">
+                <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Verification Code</label>
+                <input 
+                  type="text" 
+                  className={authInputClass}
+                  placeholder="000000"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  required
+                />
+                <button type="button" className="text-label-sm text-primary hover:underline text-left mt-1">
+                  Resend code?
+                </button>
+              </div>
+            )}
+
+            {(mode === "login" || mode === "signup" || (mode === "forgot" && forgotStep === "password")) && (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">
+                    {mode === "forgot" ? "New Password" : "Password"}
+                  </label>
+                  {mode === "login" && (
+                    <button
+                      type="button"
+                      onClick={() => switchMode("forgot")}
+                      className="text-label-sm text-primary hover:underline transition-all"
+                    >
+                      Forgot?
+                    </button>
+                  )}
+                </div>
+                <input 
+                  type="password" 
+                  className={authInputClass}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={mode !== "forgot" || forgotStep === "password"}
+                />
+              </div>
+            )}
+
+            {mode === "forgot" && forgotStep === "password" && (
+              <div className="flex flex-col gap-2">
+                <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Confirm Password</label>
+                <input 
+                  type="password" 
+                  className={authInputClass}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            {mode === "forgot" && forgotStep === "success" && (
+              <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-6 text-center">
+                <span className="material-symbols-outlined text-primary text-5xl mb-2">check_circle</span>
+                <p className="text-body-md text-on-surface">You can now sign in with your new password.</p>
               </div>
             )}
 
@@ -146,7 +212,12 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
             >
               {mode === "login" && "Sign In"}
               {mode === "signup" && "Create Account"}
-              {mode === "forgot" && (isResetSent ? "Send Again" : "Send Reset Link")}
+              {mode === "forgot" && (
+                forgotStep === "email" ? "Send OTP" :
+                forgotStep === "otp" ? "Verify Code" :
+                forgotStep === "password" ? "Reset Password" :
+                "Back to Sign In"
+              )}
             </button>
           </form>
 
