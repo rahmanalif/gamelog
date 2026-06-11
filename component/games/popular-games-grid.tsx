@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
-import { GameData } from "@/component/game-card";
+import { useEffect, useState } from "react";
+import GameCard, { GameData } from "@/component/game-card";
+import { GameFilters, GameSummary, getGames, getPopularGames } from "@/lib/game-api";
 
 export const POPULAR_GAMES: GameData[] = [
   { id: 1, title: "Spider-Man 3", rating: 4.2, views: "1.5m", likes: "124k", img: "/games/124909-spider-man-3-windows-front-cover.png" },
@@ -30,77 +30,94 @@ export const POPULAR_GAMES: GameData[] = [
   { id: 24, title: "House of the Dead", rating: 4.0, views: "800k", likes: "45k", img: "/games/house of the dead.jpg" },
 ];
 
-export default function PopularGamesGrid() {
+function formatCompact(value?: number) {
+  if (!value) return "0";
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value).toLowerCase();
+}
+
+function toGameData(game: GameSummary): GameData {
+  return {
+    id: game.id ?? game.rawgId,
+    title: game.title,
+    slug: game.slug,
+    rating: game.averageRating ?? game.rawgRating ?? 0,
+    views: formatCompact(game.views),
+    likes: formatCompact(game.likes),
+    img: game.coverImage ?? undefined,
+  };
+}
+
+interface PopularGamesGridProps {
+  title?: string;
+  filters?: GameFilters;
+  initialGames?: GameData[];
+}
+
+export default function PopularGamesGrid({
+  title = "Popular Games This Week",
+  filters,
+  initialGames,
+}: PopularGamesGridProps) {
   const [showAll, setShowAll] = useState(false);
-  const displayedGames = showAll ? POPULAR_GAMES : POPULAR_GAMES.slice(0, 12);
+  const [games, setGames] = useState<GameData[]>(initialGames ?? POPULAR_GAMES);
+  const [isLoading, setIsLoading] = useState(!initialGames);
+  const [error, setError] = useState("");
+  const displayedGames = showAll ? games : games.slice(0, 12);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadGames() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = filters
+          ? await getGames({ limit: 24, ...filters })
+          : await getPopularGames(24, "week");
+
+        if (isMounted) setGames(response.items.map(toGameData));
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Unable to load games");
+          setGames(initialGames ?? POPULAR_GAMES);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadGames();
+    return () => {
+      isMounted = false;
+    };
+  }, [filters, initialGames]);
 
   return (
     <section className="flex flex-col gap-stack-sm">
       <div className="flex justify-between items-end border-b border-surface-variant pb-2">
-        <h2 className="font-display text-headline-md text-on-surface">Popular Games This Week</h2>
+        <div>
+          <h2 className="font-display text-headline-md text-on-surface">{title}</h2>
+          {error && (
+            <p className="text-label-sm text-error mt-1">
+              Showing saved picks. {error}
+            </p>
+          )}
+        </div>
         <button 
           onClick={() => setShowAll(!showAll)}
+          disabled={games.length <= 12}
           className="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 uppercase"
         >
           {showAll ? "LESS" : "MORE"} <span className="material-symbols-outlined text-sm">{showAll ? "expand_less" : "expand_more"}</span>
         </button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {displayedGames.map((game) => (
-          <Link 
-            key={game.id} 
-            href={game.isPlaceholder ? "#" : `/games/${game.title?.toLowerCase().replace(/ /g, '-') || ''}`} 
-            className="flex flex-col gap-2 group cursor-pointer"
-          >
-            <div className={`relative w-full aspect-[2/3] border border-surface-variant rounded overflow-hidden group-hover:border-primary transition-colors ${game.isPlaceholder ? 'bg-surface-container-high' : ''}`}>
-              {game.img ? (
-                <img alt={game.title} className="w-full h-full object-cover" src={game.img} />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-display text-headline-sm text-on-surface-variant text-center px-2">{game.title}</span>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center z-10 p-4 gap-3">
-                <div className="bg-primary text-on-primary font-label-md px-3 py-1.5 rounded flex items-center gap-1 shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>visibility</span> VIEW
-                </div>
-                <span className="text-white font-display text-headline-sm text-center leading-tight transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">{game.title}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 px-1 mt-1 overflow-hidden">
-              <div className="flex items-center justify-between w-full gap-2">
-                {game.isAnticipated ? (
-                  <div className="flex items-center text-on-surface-variant gap-0.5 font-label-sm uppercase tracking-wider text-[10px] whitespace-nowrap">
-                    Anticipated
-                  </div>
-                ) : (
-                  <div className="flex items-center text-primary gap-0 shrink-0">
-                    {[...Array(5)].map((_, i) => {
-                      const fill = i + 0.5 < (game.rating || 0) ? 1 : 0;
-                      const icon = i + 0.5 === (game.rating || 0) ? 'star_half' : 'star';
-                      return (
-                        <span key={i} className="material-symbols-outlined" style={{ fontVariationSettings: `'FILL' ${fill}`, fontSize: '13px' }}>{icon}</span>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                <div className="flex items-center text-on-surface-variant gap-2 font-label-sm text-[10px] shrink-0">
-                  <span className="flex items-center gap-0.5 whitespace-nowrap">
-                    <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{game.isAnticipated ? 'watch_later' : 'visibility'}</span> 
-                    {game.views}
-                  </span>
-                  {game.likes && game.likes !== "0" && (
-                    <span className="flex items-center gap-0.5 whitespace-nowrap">
-                      <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1", fontSize: '13px' }}>favorite</span> 
-                      {game.likes}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Link>
-        ))}
+        {isLoading
+          ? [...Array(12)].map((_, index) => (
+              <div key={index} className="aspect-[2/3] rounded bg-surface-container-high animate-pulse" />
+            ))
+          : displayedGames.map((game) => <GameCard key={game.id ?? game.title} game={game} />)}
       </div>
     </section>
   );

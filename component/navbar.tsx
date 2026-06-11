@@ -5,22 +5,18 @@ import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
-import { POPULAR_GAMES } from '@/component/games/popular-games-grid';
+import { GameSummary, searchGames } from '@/lib/game-api';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { isLoggedIn, user, openAuthModal, setIsLoggedIn } = useAuth();
+  const { isLoggedIn, user, openAuthModal, signOut } = useAuth();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [searchResults, setSearchResults] = useState<GameSummary[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  const searchResults = searchQuery.length > 1
-    ? POPULAR_GAMES.filter((g) =>
-        g.title.toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 6)
-    : [];
+  const visibleSearchResults = searchQuery.trim().length > 1 ? searchResults : [];
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -32,6 +28,28 @@ export default function Navbar() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const query = searchQuery.trim();
+
+    if (query.length < 2) return;
+
+    const timeoutId = window.setTimeout(() => {
+      searchGames(query)
+        .then((response) => {
+          if (isMounted) setSearchResults(response.items.slice(0, 6));
+        })
+        .catch(() => {
+          if (isMounted) setSearchResults([]);
+        });
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
 
   const clearSearch = () => {
     setSearchQuery('');
@@ -97,18 +115,18 @@ export default function Navbar() {
               </span>
 
               {/* Search dropdown */}
-              {isSearchFocused && searchResults.length > 0 && (
+              {isSearchFocused && visibleSearchResults.length > 0 && (
                 <div className="absolute top-full right-0 mt-2 w-72 bg-surface-container border border-surface-variant rounded-xl shadow-2xl z-50 overflow-hidden">
-                  {searchResults.map((game) => (
+                  {visibleSearchResults.map((game) => (
                     <Link
                       key={game.id}
-                      href={`/games/${game.title?.toLowerCase().replace(/ /g, '-')}`}
+                      href={`/games/${game.slug}`}
                       onClick={clearSearch}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high transition-colors group"
                     >
                       <div className="w-8 h-11 shrink-0 rounded overflow-hidden border border-surface-variant">
-                        {game.img && (
-                          <img src={game.img} alt={game.title} className="w-full h-full object-cover" />
+                        {game.coverImage && (
+                          <img src={game.coverImage} alt={game.title} className="w-full h-full object-cover" />
                         )}
                       </div>
                       <div className="min-w-0">
@@ -123,7 +141,7 @@ export default function Navbar() {
                               style={{
                                 fontSize: '11px',
                                 fontVariationSettings:
-                                  s <= Math.floor(game.rating || 0) ? "'FILL' 1" : "'FILL' 0",
+                                  s <= Math.floor(game.averageRating ?? game.rawgRating ?? 0) ? "'FILL' 1" : "'FILL' 0",
                               }}
                             >
                               star
@@ -195,7 +213,7 @@ export default function Navbar() {
                       <Link href="/settings/profile" className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Settings</Link>
                       <div className="h-px bg-surface-variant my-2" />
                       <button
-                        onClick={() => setIsLoggedIn(false)}
+                        onClick={signOut}
                         className="w-full text-left px-4 py-2 text-label-md text-primary hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold"
                       >
                         Sign Out
@@ -256,17 +274,17 @@ export default function Navbar() {
                 >
                   search
                 </span>
-                {searchResults.length > 0 && (
+                {visibleSearchResults.length > 0 && (
                   <div className="mt-2 bg-surface-container border border-surface-variant rounded-xl overflow-hidden">
-                    {searchResults.map((game) => (
+                    {visibleSearchResults.map((game) => (
                       <Link
                         key={game.id}
-                        href={`/games/${game.title?.toLowerCase().replace(/ /g, '-')}`}
+                        href={`/games/${game.slug}`}
                         onClick={() => { clearSearch(); setIsMobileMenuOpen(false); }}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high transition-colors"
                       >
                         <div className="w-7 h-10 shrink-0 rounded overflow-hidden border border-surface-variant">
-                          {game.img && <img src={game.img} alt={game.title} className="w-full h-full object-cover" />}
+                          {game.coverImage && <img src={game.coverImage} alt={game.title} className="w-full h-full object-cover" />}
                         </div>
                         <p className="text-body-md font-bold text-on-surface">{game.title}</p>
                       </Link>

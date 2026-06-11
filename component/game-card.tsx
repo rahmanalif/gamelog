@@ -3,6 +3,7 @@ import Link from "next/link";
 export interface GameData {
   id?: string | number;
   title: string;
+  slug?: string;
   img?: string;
   rating?: number;
   views?: string;
@@ -17,9 +18,13 @@ interface GameCardProps {
 }
 
 export default function GameCard({ game, className = "" }: GameCardProps) {
+  const href = game.isPlaceholder
+    ? "#"
+    : `/games/${game.slug ?? game.title?.toLowerCase().replace(/ /g, "-")}`;
+
   return (
     <Link 
-      href={game.isPlaceholder ? "#" : `/games/${game.title?.toLowerCase().replace(/ /g, '-')}`} 
+      href={href}
       className={`flex flex-col gap-2 group cursor-pointer ${className}`}
     >
       <div className={`relative w-full aspect-[2/3] border border-surface-variant rounded overflow-hidden group-hover:border-primary transition-colors ${game.isPlaceholder ? 'bg-surface-container-high' : ''}`}>

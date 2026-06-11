@@ -146,6 +146,23 @@ export default function EditProfilePage() {
             </div>
           </section>
 
+          <section className="mt-6 flex flex-col gap-6">
+            <h3 className="font-display font-bold text-headline-sm text-white border-b border-surface-variant pb-2 tracking-wide">Connected Accounts</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+              {["Google", "Apple", "Steam"].map((provider) => (
+                <button
+                  key={provider}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-surface-variant bg-surface-container-low px-4 py-3 text-left opacity-70 cursor-not-allowed"
+                  type="button"
+                  disabled
+                >
+                  <span className="font-bold text-label-md uppercase tracking-widest text-on-surface">{provider}</span>
+                  <span className="text-label-sm uppercase tracking-widest text-on-surface-variant">Soon</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
           {/* Actions */}
           <div className="mt-8 flex flex-col sm:flex-row gap-4 border-t border-surface-variant pt-8 sm:justify-end items-center">
             <Link 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { GameMetaItem, logGame } from "@/lib/game-api";
 
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -128,6 +129,8 @@ interface LogGameModalProps {
   onClose: () => void;
   gameTitle?: string;
   gamePoster?: string;
+  platforms?: GameMetaItem[];
+  rawgId?: number;
 }
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -176,12 +179,17 @@ export default function LogGameModal({
   onClose,
   gameTitle = "Elden Ring",
   gamePoster = "/elder.jpg",
+  platforms = [],
+  rawgId,
 }: LogGameModalProps) {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
   const [datePlayed, setDatePlayed] = useState(new Date().toISOString().split("T")[0]);
   const [platform, setPlatform] = useState("");
   const [finished, setFinished] = useState(true);
+  const [containsSpoilers, setContainsSpoilers] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -193,9 +201,33 @@ export default function LogGameModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onClose();
+    if (!rawgId) return;
+
+    const selectedPlatform = platforms.find((item) => String(item.id) === platform);
+    setIsSaving(true);
+    setError("");
+
+    try {
+      await logGame(rawgId, {
+        rating: rating || undefined,
+        reviewText: review.trim() || undefined,
+        playedAt: datePlayed,
+        platformId: selectedPlatform?.id,
+        platformName: selectedPlatform?.name,
+        finished,
+        containsSpoilers,
+      });
+      onClose();
+      setReview("");
+      setRating(0);
+      setContainsSpoilers(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save log");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -274,13 +306,11 @@ export default function LogGameModal({
                 className="w-full bg-surface-container-high border border-surface-variant rounded-lg p-3 text-body-md focus:outline-none focus:border-primary transition-colors text-on-surface appearance-none cursor-pointer pr-10"
               >
                 <option value="">Select platform...</option>
-                <option value="ps5">PlayStation 5</option>
-                <option value="ps4">PlayStation 4</option>
-                <option value="ps2">PlayStation 2</option>
-                <option value="xbox">Xbox Series X/S</option>
-                <option value="pc">PC (Steam)</option>
-                <option value="switch">Nintendo Switch</option>
-                <option value="mobile">Mobile</option>
+                {platforms.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
               </select>
               <span
                 className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
@@ -308,6 +338,31 @@ export default function LogGameModal({
             />
           </div>
 
+          <div className="flex items-center justify-between py-1">
+            <span className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">
+              Contains Spoilers
+            </span>
+            <button
+              type="button"
+              onClick={() => setContainsSpoilers(!containsSpoilers)}
+              className={`w-12 h-6 rounded-full relative transition-colors duration-200 ${
+                containsSpoilers ? "bg-primary" : "bg-surface-variant"
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 rounded-full transition-all duration-200 ${
+                  containsSpoilers ? "right-1 bg-[#00210b]" : "left-1 bg-on-surface-variant"
+                }`}
+              />
+            </button>
+          </div>
+
+          {error && (
+            <p className="text-label-sm text-error font-bold uppercase tracking-widest">
+              {error}
+            </p>
+          )}
+
           {/* Actions */}
           <div className="flex items-center justify-end gap-4 pt-2 border-t border-surface-variant">
             <button
@@ -319,6 +374,7 @@ export default function LogGameModal({
             </button>
             <button
               type="submit"
+              disabled={isSaving || !rawgId || !datePlayed}
               className="bg-primary text-on-primary-fixed px-8 py-3 rounded-lg font-bold tracking-[0.15em] hover:bg-primary-container transition-all shadow-lg active:scale-95 uppercase text-label-md flex items-center gap-2"
             >
               <span
@@ -327,7 +383,7 @@ export default function LogGameModal({
               >
                 edit_square
               </span>
-              SAVE LOG
+              {isSaving ? "SAVING" : "SAVE LOG"}
             </button>
           </div>
         </form>

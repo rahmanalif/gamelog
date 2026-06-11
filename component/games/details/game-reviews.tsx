@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import GameCard from "@/component/game-card";
+import { GameReview, getGameReviews } from "@/lib/game-api";
 
 const REVIEWS = [
   {
@@ -104,23 +105,51 @@ const SIMILAR_GAMES = [
 
 type Tab = "REVIEWS" | "LISTS" | "SIMILAR";
 
-export default function GameReviews() {
-  const [activeTab, setActiveTab] = useState<Tab>("REVIEWS");
-  const [listPage, setListPage] = useState(1);
-  const [similarPage, setSimilarPage] = useState(1);
+function formatCompact(value?: number) {
+  if (!value) return "0";
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value).toLowerCase();
+}
 
-  const LISTS_PER_PAGE = 4;
-  const SIMILAR_PER_PAGE = 12; // 2 rows of 6
+function formatReviewDate(value?: string | null) {
+  if (!value) return "";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
-  const totalListPages = Math.ceil(LISTS.length / LISTS_PER_PAGE);
-  const currentLists = LISTS.slice((listPage - 1) * LISTS_PER_PAGE, listPage * LISTS_PER_PAGE);
+function fallbackReviews(): GameReview[] {
+  return REVIEWS.map((review) => ({
+    id: String(review.id),
+    rating: review.rating,
+    reviewText: review.content,
+    playedAt: review.date,
+    likesCount: Number.parseInt(review.likes, 10) || 0,
+    user: {
+      username: review.user,
+      avatar: review.avatar,
+    },
+  }));
+}
 
-  const totalSimilarPages = Math.ceil(SIMILAR_GAMES.length / SIMILAR_PER_PAGE);
-  const currentSimilar = SIMILAR_GAMES.slice((similarPage - 1) * SIMILAR_PER_PAGE, similarPage * SIMILAR_PER_PAGE);
+interface GameReviewsProps {
+  rawgId?: number;
+  initialReviews?: GameReview[];
+}
 
-  const Pagination = ({ current, total, onChange }: { current: number, total: number, onChange: (p: number) => void }) => (
+function Pagination({
+  current,
+  total,
+  onChange,
+}: {
+  current: number;
+  total: number;
+  onChange: (p: number) => void;
+}) {
+  return (
     <div className="flex items-center justify-end gap-2 mt-6">
-      <button 
+      <button
         onClick={() => onChange(Math.max(current - 1, 1))}
         disabled={current === 1}
         className="w-8 h-8 flex items-center justify-center rounded border border-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -133,8 +162,8 @@ export default function GameReviews() {
             key={i + 1}
             onClick={() => onChange(i + 1)}
             className={`w-8 h-8 flex items-center justify-center rounded font-bold text-xs transition-all ${
-              current === i + 1 
-                ? "bg-primary text-on-primary shadow-sm" 
+              current === i + 1
+                ? "bg-primary text-on-primary shadow-sm"
                 : "border border-surface-variant text-on-surface-variant hover:bg-surface-container"
             }`}
           >
@@ -142,7 +171,7 @@ export default function GameReviews() {
           </button>
         ))}
       </div>
-      <button 
+      <button
         onClick={() => onChange(Math.min(current + 1, total))}
         disabled={current === total}
         className="w-8 h-8 flex items-center justify-center rounded border border-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -151,6 +180,44 @@ export default function GameReviews() {
       </button>
     </div>
   );
+}
+
+export default function GameReviews({ rawgId, initialReviews }: GameReviewsProps) {
+  const [activeTab, setActiveTab] = useState<Tab>("REVIEWS");
+  const [listPage, setListPage] = useState(1);
+  const [similarPage, setSimilarPage] = useState(1);
+  const [reviews, setReviews] = useState<GameReview[]>(initialReviews ?? fallbackReviews());
+  const [reviewsError, setReviewsError] = useState("");
+
+  const LISTS_PER_PAGE = 4;
+  const SIMILAR_PER_PAGE = 12; // 2 rows of 6
+
+  const totalListPages = Math.ceil(LISTS.length / LISTS_PER_PAGE);
+  const currentLists = LISTS.slice((listPage - 1) * LISTS_PER_PAGE, listPage * LISTS_PER_PAGE);
+
+  const totalSimilarPages = Math.ceil(SIMILAR_GAMES.length / SIMILAR_PER_PAGE);
+  const currentSimilar = SIMILAR_GAMES.slice((similarPage - 1) * SIMILAR_PER_PAGE, similarPage * SIMILAR_PER_PAGE);
+  const reviewItems = useMemo(() => reviews.filter((review) => review.reviewText), [reviews]);
+
+  useEffect(() => {
+    if (!rawgId) return;
+    let isMounted = true;
+
+    getGameReviews(rawgId, { page: 1, limit: 10, sort: "popular" })
+      .then((response) => {
+        if (!isMounted) return;
+        setReviews(response.items.length ? response.items : []);
+        setReviewsError("");
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        setReviewsError(err instanceof Error ? err.message : "Unable to load reviews");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [rawgId]);
 
   return (
     <div className="mt-stack-lg border-t border-surface-variant pt-stack-sm min-h-[500px]">
@@ -175,35 +242,40 @@ export default function GameReviews() {
       <div className="mt-8">
         {activeTab === "REVIEWS" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-2">
-            {REVIEWS.map((review) => (
+            {reviewItems.map((review) => (
               <div key={review.id} className="bg-surface-container-low border border-surface-variant p-6 rounded-xl flex flex-col gap-4 hover:border-primary/30 transition-all duration-300 group">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline shadow-sm">
-                      <img alt={review.user} className="w-full h-full object-cover" src={review.avatar} />
+                      <img alt={review.user.username} className="w-full h-full object-cover" src={review.user.avatar ?? "/users/pewdiepie.jpg"} />
                     </div>
                     <div>
-                      <div className="font-label-md text-label-md text-on-surface font-bold">{review.user}</div>
+                      <div className="font-label-md text-label-md text-on-surface font-bold">{review.user.username}</div>
                       <div className="flex items-center gap-4 mt-1">
                         <div className="flex items-center text-primary-container gap-0.5">
                           {[...Array(5)].map((_, i) => (
-                            <span key={i} className="material-symbols-outlined" style={{ fontVariationSettings: i < review.rating ? "'FILL' 1" : "'FILL' 0", fontSize: '14px' }}>star</span>
+                            <span key={i} className="material-symbols-outlined" style={{ fontVariationSettings: i < (review.rating ?? 0) ? "'FILL' 1" : "'FILL' 0", fontSize: '14px' }}>star</span>
                           ))}
                         </div>
                         <div className="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm">
                           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>favorite</span>
-                          {review.likes}
+                          {formatCompact(review.likesCount)}
                         </div>
                       </div>
                     </div>
                   </div>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant">{review.date}</span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant">{formatReviewDate(review.playedAt ?? review.createdAt)}</span>
                 </div>
                 <p className="font-body text-body-md text-on-surface-variant line-clamp-4 leading-relaxed italic">
-                  "{review.content}"
+                  &quot;{review.reviewText}&quot;
                 </p>
               </div>
             ))}
+            {!reviewItems.length && (
+              <div className="md:col-span-2 bg-surface-container-low border border-surface-variant p-6 rounded-xl text-on-surface-variant">
+                {reviewsError || "No reviews have been written for this game yet."}
+              </div>
+            )}
             <div className="md:col-span-2 flex justify-center mt-4">
               <button className="font-label-md text-label-md text-on-surface hover:text-primary transition-colors border border-surface-variant hover:border-primary px-8 py-3 rounded-lg font-bold tracking-widest uppercase">
                 READ ALL REVIEWS
