@@ -149,35 +149,44 @@ function unwrapData<T>(data: unknown): T {
 }
 
 function normalizeItems<T>(data: unknown): Paginated<T> {
-  const envelope = data as { data?: unknown; pagination?: BackendPagination; meta?: BackendPagination };
+  const envelope = data as { 
+    data?: unknown; 
+    pagination?: BackendPagination; 
+    meta?: BackendPagination;
+    total?: number;
+    limit?: number;
+    page?: number;
+    totalPages?: number;
+  };
   const unwrapped = unwrapData<unknown>(data);
 
-  if (Array.isArray(unwrapped)) return { items: unwrapped as T[] };
-
-  if (typeof unwrapped === "object" && unwrapped !== null) {
+  let items: T[] = [];
+  if (Array.isArray(unwrapped)) {
+    items = unwrapped as T[];
+  } else if (typeof unwrapped === "object" && unwrapped !== null) {
     const record = unwrapped as Record<string, unknown>;
-    const items = Array.isArray(record.items)
+    items = Array.isArray(record.items)
       ? (record.items as T[])
       : Array.isArray(record.data)
         ? (record.data as T[])
         : [];
-    const pagination = envelope.pagination ?? envelope.meta;
-    const meta =
-      typeof record.meta === "object" && record.meta !== null
-        ? (record.meta as Paginated<T>["meta"])
-        : pagination
-          ? {
-              page: pagination.page ?? 1,
-              limit: pagination.limit ?? items.length,
-              total: pagination.total ?? items.length,
-              totalPages: pagination.totalPages ?? 1,
-            }
-        : undefined;
-
-    return { items, meta };
   }
 
-  return { items: [] };
+  // Check nested keys first, then root
+  const pagination = envelope.pagination ?? envelope.meta ?? envelope;
+  const total = Number(pagination?.total ?? (envelope as any).total ?? items.length);
+  const limit = Number(pagination?.limit ?? (envelope as any).limit ?? items.length);
+  const page = Number(pagination?.page ?? (envelope as any).page ?? 1);
+  const totalPages = Number(pagination?.totalPages ?? (envelope as any).totalPages ?? (Math.ceil(total / limit) || 1));
+
+  const meta = {
+    page,
+    limit,
+    total,
+    totalPages,
+  };
+
+  return { items, meta };
 }
 
 function getNestedMetaItems(value: unknown, key: "genre" | "platform" | "company"): GameMetaItem[] {

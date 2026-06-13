@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/component/navbar";
 import Footer from "@/component/footer";
 import PopularGamesGrid from "@/component/games/popular-games-grid";
@@ -27,7 +28,9 @@ const SORT_OPTIONS = [
   { label: "Alphabetical", value: "alphabetical" },
 ];
 
-export default function GamesPage() {
+function GamesPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [genres, setGenres] = useState<GameMetaItem[]>(FALLBACK_GENRES);
   const [platforms, setPlatforms] = useState<GameMetaItem[]>(FALLBACK_PLATFORMS);
   const [activeGenre, setActiveGenre] = useState<GameMetaItem | null>(null);
@@ -35,8 +38,47 @@ export default function GamesPage() {
   const [activeSort, setActiveSort] = useState(SORT_OPTIONS[0]);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  const isBrowsingAll = searchParams.get("view") === "all";
+  const currentPage = Number(searchParams.get("page")) || 1;
+
   const toggleDropdown = (name: string) =>
     setOpenDropdown((prev) => (prev === name ? null : name));
+
+  const setIsBrowsingAll = (val: boolean) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("view", "all");
+      params.set("page", "1");
+    } else {
+      params.delete("view");
+      params.delete("page");
+    }
+    router.push(`/games?${params.toString()}`, { scroll: false });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
+    router.push(`/games?${params.toString()}`, { scroll: false });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const updateFilters = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    params.set("page", "1"); // Reset to page 1 on filter change
+    router.push(`/games?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (isBrowsingAll) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [isBrowsingAll]);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,6 +114,17 @@ export default function GamesPage() {
       <Navbar />
 
       <div className="w-full max-w-container-max mx-auto px-gutter py-12 flex flex-col gap-8">
+        {/* Back Button if in Browse All Mode */}
+        {isBrowsingAll && (
+          <button
+            onClick={() => setIsBrowsingAll(false)}
+            className="flex items-center gap-2 text-primary hover:text-primary transition-opacity hover:opacity-80 font-bold uppercase tracking-widest text-label-md w-fit"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+            Back to Discovery
+          </button>
+        )}
+
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center gap-3 py-4 border-b border-surface-variant">
           {/* Genre */}
@@ -93,7 +146,7 @@ export default function GamesPage() {
               <div className="absolute top-full left-0 mt-2 bg-surface-container border border-surface-variant rounded-xl shadow-2xl z-30 min-w-[160px] py-1 overflow-hidden">
                 {activeGenre && (
                   <button
-                    onClick={() => { setActiveGenre(null); setOpenDropdown(null); }}
+                    onClick={() => { setActiveGenre(null); setOpenDropdown(null); updateFilters("genre", null); }}
                     className="w-full text-left px-4 py-2.5 text-label-md font-bold uppercase tracking-widest text-error hover:bg-surface-container-high transition-colors"
                   >
                     Clear
@@ -102,7 +155,7 @@ export default function GamesPage() {
                 {genres.map((g) => (
                   <button
                     key={g.slug}
-                    onClick={() => { setActiveGenre(g); setOpenDropdown(null); }}
+                    onClick={() => { setActiveGenre(g); setOpenDropdown(null); updateFilters("genre", g.slug); }}
                     className={`w-full text-left px-4 py-2.5 text-label-md font-bold uppercase tracking-widest transition-colors hover:bg-surface-container-high ${
                       activeGenre?.slug === g.slug ? "text-primary" : "text-on-surface-variant"
                     }`}
@@ -133,7 +186,7 @@ export default function GamesPage() {
               <div className="absolute top-full left-0 mt-2 bg-surface-container border border-surface-variant rounded-xl shadow-2xl z-30 min-w-[200px] py-1 overflow-hidden">
                 {activePlatform && (
                   <button
-                    onClick={() => { setActivePlatform(null); setOpenDropdown(null); }}
+                    onClick={() => { setActivePlatform(null); setOpenDropdown(null); updateFilters("platform", null); }}
                     className="w-full text-left px-4 py-2.5 text-label-md font-bold uppercase tracking-widest text-error hover:bg-surface-container-high transition-colors"
                   >
                     Clear
@@ -142,7 +195,7 @@ export default function GamesPage() {
                 {platforms.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => { setActivePlatform(p); setOpenDropdown(null); }}
+                    onClick={() => { setActivePlatform(p); setOpenDropdown(null); updateFilters("platform", p.slug); }}
                     className={`w-full text-left px-4 py-2.5 text-label-md font-bold uppercase tracking-widest transition-colors hover:bg-surface-container-high ${
                       activePlatform?.id === p.id ? "text-primary" : "text-on-surface-variant"
                     }`}
@@ -157,7 +210,7 @@ export default function GamesPage() {
           {/* Active filter chips */}
           {(activeGenre || activePlatform) && (
             <button
-              onClick={() => { setActiveGenre(null); setActivePlatform(null); }}
+              onClick={() => { setActiveGenre(null); setActivePlatform(null); updateFilters("genre", null); updateFilters("platform", null); }}
               className="flex items-center gap-1 px-3 py-2 rounded-lg text-label-sm font-bold text-error border border-error/30 hover:bg-error/10 transition-colors uppercase tracking-widest"
             >
               <span className="material-symbols-outlined text-[14px]">close</span>
@@ -182,7 +235,7 @@ export default function GamesPage() {
                 {SORT_OPTIONS.map((s) => (
                   <button
                     key={s.value}
-                    onClick={() => { setActiveSort(s); setOpenDropdown(null); }}
+                    onClick={() => { setActiveSort(s); setOpenDropdown(null); updateFilters("sort", s.value); }}
                     className={`w-full text-left px-4 py-2.5 text-label-md font-bold uppercase tracking-widest transition-colors hover:bg-surface-container-high ${
                       activeSort.value === s.value ? "text-primary" : "text-on-surface-variant"
                     }`}
@@ -195,16 +248,33 @@ export default function GamesPage() {
           </div>
         </div>
 
-        <PopularGamesGrid title="Browse Games" filters={gameFilters} />
+        <PopularGamesGrid 
+          title={isBrowsingAll ? "All Games" : "Browse Games"} 
+          filters={gameFilters} 
+          onMoreClick={() => setIsBrowsingAll(true)}
+          isFullView={isBrowsingAll}
+          page={currentPage}
+          onPageChange={handlePageChange}
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-4">
-            <PopularReviews />
+        {!isBrowsingAll && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-4">
+              <PopularReviews />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <Footer />
     </div>
+  );
+}
+
+export default function GamesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background animate-pulse" />}>
+      <GamesPageContent />
+    </Suspense>
   );
 }

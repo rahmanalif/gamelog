@@ -51,18 +51,27 @@ interface PopularGamesGridProps {
   title?: string;
   filters?: GameFilters;
   initialGames?: GameData[];
+  onMoreClick?: () => void;
+  isFullView?: boolean;
+  page?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export default function PopularGamesGrid({
   title = "Popular Games This Week",
   filters,
   initialGames,
+  onMoreClick,
+  isFullView = false,
+  page = 1,
+  onPageChange,
 }: PopularGamesGridProps) {
   const [showAll, setShowAll] = useState(false);
   const [games, setGames] = useState<GameData[]>(initialGames ?? POPULAR_GAMES);
   const [isLoading, setIsLoading] = useState(!initialGames);
   const [error, setError] = useState("");
-  const displayedGames = showAll ? games : games.slice(0, 12);
+  const [totalPages, setTotalPages] = useState(1);
+  const displayedGames = isFullView || showAll ? games : games.slice(0, 12);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,15 +81,22 @@ export default function PopularGamesGrid({
       setError("");
 
       try {
+        const limit = isFullView ? 18 : 24;
         const response = filters
-          ? await getGames({ limit: 24, ...filters })
-          : await getPopularGames(24, "week");
+          ? await getGames({ limit, page, ...filters })
+          : await getPopularGames(limit, "week");
 
-        if (isMounted) setGames(response.items.map(toGameData));
+        if (isMounted) {
+          setGames(response.items.map(toGameData));
+          if (response.meta) {
+            setTotalPages(response.meta.totalPages);
+          }
+        }
       } catch (err) {
         if (isMounted) {
           setError(err instanceof Error ? err.message : "Unable to load games");
           setGames(initialGames ?? POPULAR_GAMES);
+          setTotalPages(1);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -91,10 +107,10 @@ export default function PopularGamesGrid({
     return () => {
       isMounted = false;
     };
-  }, [filters, initialGames]);
+  }, [filters, initialGames, isFullView, page]);
 
   return (
-    <section className="flex flex-col gap-stack-sm">
+    <section className="flex flex-col gap-stack-md">
       <div className="flex justify-between items-end border-b border-surface-variant pb-2">
         <div>
           <h2 className="font-display text-headline-md text-on-surface">{title}</h2>
@@ -104,21 +120,49 @@ export default function PopularGamesGrid({
             </p>
           )}
         </div>
-        <button 
-          onClick={() => setShowAll(!showAll)}
-          disabled={games.length <= 12}
-          className="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 uppercase"
-        >
-          {showAll ? "LESS" : "MORE"} <span className="material-symbols-outlined text-sm">{showAll ? "expand_less" : "expand_more"}</span>
-        </button>
+        {!isFullView && (
+          <button 
+            onClick={onMoreClick || (() => setShowAll(!showAll))}
+            disabled={games.length <= 12}
+            className="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 uppercase"
+          >
+            {showAll ? "LESS" : "MORE"} <span className="material-symbols-outlined text-sm">{showAll ? "expand_less" : "expand_more"}</span>
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {isLoading
-          ? [...Array(12)].map((_, index) => (
+          ? [...Array(isFullView ? 18 : 12)].map((_, index) => (
               <div key={index} className="aspect-[2/3] rounded bg-surface-container-high animate-pulse" />
             ))
           : displayedGames.map((game) => <GameCard key={game.id ?? game.title} game={game} />)}
       </div>
+
+      {isFullView && totalPages > 1 && (
+        <div className="flex justify-end items-center gap-6 mt-8 pb-4">
+          <div className="text-label-md text-on-surface-variant uppercase tracking-widest font-bold">
+            Page {page} of {totalPages}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => onPageChange?.(page - 1)}
+              disabled={page <= 1 || isLoading}
+              className="flex items-center justify-center w-12 h-12 rounded-full border border-surface-variant text-on-surface hover:bg-primary hover:text-on-primary hover:border-primary disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-on-surface disabled:hover:border-surface-variant transition-all shadow-lg"
+              title="Previous Page"
+            >
+              <span className="material-symbols-outlined">chevron_left</span>
+            </button>
+            <button
+              onClick={() => onPageChange?.(page + 1)}
+              disabled={page >= totalPages || isLoading}
+              className="flex items-center justify-center w-12 h-12 rounded-full border border-surface-variant text-on-surface hover:bg-primary hover:text-on-primary hover:border-primary disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-on-surface disabled:hover:border-surface-variant transition-all shadow-lg"
+              title="Next Page"
+            >
+              <span className="material-symbols-outlined">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
