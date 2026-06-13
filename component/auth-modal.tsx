@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
+  confirmEmailByOtp,
   login,
   register,
   requestPasswordOtp,
+  resendEmailVerification,
   resetPasswordWithOtp,
   sendTwoFactorCode,
   verifyPasswordOtp,
@@ -21,7 +23,7 @@ interface AuthModalProps {
   initialMode?: "login" | "signup";
 }
 
-type AuthMode = "login" | "signup" | "forgot" | "two-factor";
+type AuthMode = "login" | "signup" | "forgot" | "two-factor" | "verify-email";
 type ForgotStep = "email" | "otp" | "password" | "success";
 
 const authInputClass =
@@ -87,7 +89,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
     try {
       if (mode === "signup") {
         if (!acceptTerms) throw new Error("Please accept the Terms of Use and Privacy Policy.");
-        complete(await register({ username, email, password, acceptTerms }));
+        const result = await register({ username, email, password, acceptTerms });
+        setEmail(result.email);
+        setOtp("");
+        setMode("verify-email");
+        setStatus(`A 6-digit verification code was sent to ${result.email}.`);
+        return;
+      }
+
+      if (mode === "verify-email") {
+        complete(await confirmEmailByOtp({ email, code: otp }));
         return;
       }
 
@@ -177,45 +188,51 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
       ? "Sign In"
       : mode === "signup"
         ? "Join Gamelog"
-        : mode === "two-factor"
-          ? "Two-Factor Check"
-          : forgotStep === "email"
-            ? "Reset Password"
-            : forgotStep === "otp"
-              ? "Verify OTP"
-              : forgotStep === "password"
-                ? "New Password"
-                : "Success!";
+        : mode === "verify-email"
+          ? "Verify Your Email"
+          : mode === "two-factor"
+            ? "Two-Factor Check"
+            : forgotStep === "email"
+              ? "Reset Password"
+              : forgotStep === "otp"
+                ? "Verify OTP"
+                : forgotStep === "password"
+                  ? "New Password"
+                  : "Success!";
 
   const description =
     mode === "login"
       ? "Welcome back to the community."
       : mode === "signup"
         ? "Create an email and password account."
-        : mode === "two-factor"
-          ? "Enter the code from one of your enabled methods."
-          : forgotStep === "email"
-            ? "Enter your email to receive a verification code."
-            : forgotStep === "otp"
-              ? `We've sent a 6-digit code to ${email || "your email"}.`
-              : forgotStep === "password"
-                ? "Choose a strong password for your account."
-                : "Your password has been reset successfully.";
+        : mode === "verify-email"
+          ? `Enter the 6-digit code sent to ${email || "your email"}.`
+          : mode === "two-factor"
+            ? "Enter the code from one of your enabled methods."
+            : forgotStep === "email"
+              ? "Enter your email to receive a verification code."
+              : forgotStep === "otp"
+                ? `We've sent a 6-digit code to ${email || "your email"}.`
+                : forgotStep === "password"
+                  ? "Choose a strong password for your account."
+                  : "Your password has been reset successfully.";
 
   const submitLabel =
     mode === "login"
       ? "Sign In"
       : mode === "signup"
         ? "Create Account"
-        : mode === "two-factor"
-          ? "Verify Code"
-          : forgotStep === "email"
-            ? "Send OTP"
-            : forgotStep === "otp"
-              ? "Verify Code"
-              : forgotStep === "password"
-                ? "Reset Password"
-                : "Back to Sign In";
+        : mode === "verify-email"
+          ? "Verify & Sign In"
+          : mode === "two-factor"
+            ? "Verify Code"
+            : forgotStep === "email"
+              ? "Send OTP"
+              : forgotStep === "otp"
+                ? "Verify Code"
+                : forgotStep === "password"
+                  ? "Reset Password"
+                  : "Back to Sign In";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -265,6 +282,43 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
+              </div>
+            )}
+
+            {mode === "verify-email" && (
+              <div className="flex flex-col gap-2">
+                <label className="text-label-md font-bold tracking-widest uppercase text-on-surface-variant">Verification Code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className={authInputClass}
+                  placeholder="000000"
+                  maxLength={8}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  required
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    setError("");
+                    setStatus("");
+                    setIsSubmitting(true);
+                    try {
+                      await resendEmailVerification(email);
+                      setStatus("A new code has been sent.");
+                    } catch (caught) {
+                      handleError(caught);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  className="text-label-sm text-primary hover:underline text-left mt-1 disabled:cursor-not-allowed disabled:text-on-surface-variant"
+                >
+                  Resend code
+                </button>
               </div>
             )}
 
@@ -429,7 +483,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
             <p className="text-body-md text-on-surface-variant">
               {mode === "login" && "No account yet?"}
               {mode === "signup" && "Already have an account?"}
-              {(mode === "forgot" || mode === "two-factor") && "Need a different route?"}
+              {(mode === "forgot" || mode === "two-factor" || mode === "verify-email") && "Need a different route?"}
               <button
                 type="button"
                 onClick={() => switchMode(mode === "login" ? "signup" : "login")}
@@ -437,7 +491,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "l
               >
                 {mode === "login" && "Create one here"}
                 {mode === "signup" && "Sign in instead"}
-                {(mode === "forgot" || mode === "two-factor") && "Back to sign in"}
+                {(mode === "forgot" || mode === "two-factor" || mode === "verify-email") && "Back to sign in"}
               </button>
             </p>
           </div>

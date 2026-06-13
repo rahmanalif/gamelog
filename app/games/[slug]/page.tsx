@@ -2,6 +2,7 @@ import Navbar from "@/component/navbar";
 import Footer from "@/component/footer";
 import GameHero from "@/component/games/details/game-hero";
 import GameReviews from "@/component/games/details/game-reviews";
+import BackButton from "@/component/games/details/back-button";
 import { getGame, getGameReviews } from "@/lib/game-api";
 
 export default async function GameDetailsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -38,7 +39,11 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
         <Navbar />
       </div>
 
-      <main className="w-full max-w-container-max mx-auto px-gutter mt-32 md:mt-75 pb-12 flex flex-col gap-12 relative z-20">
+      <div className="w-full max-w-container-max mx-auto px-gutter mt-8 relative z-20">
+        <BackButton />
+      </div>
+
+      <main className="w-full max-w-container-max mx-auto px-gutter mt-12 md:mt-55 pb-12 flex flex-col gap-12 relative z-20">
         <GameHero gameTitle={fallbackTitle} game={game} slug={slug} />
         <GameReviews rawgId={game?.rawgId} initialReviews={reviews} />
       </main>

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import AuthModal from "@/component/auth-modal";
+import { logout as apiLogout, refreshTokens } from "@/lib/auth-api";
 import type { AuthSuccess, AuthTokens, AuthUser } from "@/lib/auth-api";
 
 type User = AuthUser & { avatar: string };
@@ -83,10 +84,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = () => {
+    const storedAuth = getStoredAuth();
+    const refreshToken = storedAuth?.tokens?.refresh ?? storedAuth?.tokens?.refreshToken;
+    if (refreshToken) apiLogout(refreshToken);
     setUser(null);
     setTokens(null);
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
   };
+
+  // Silently refresh access token when it nears expiry (every 13 minutes)
+  useEffect(() => {
+    const interval = window.setInterval(async () => {
+      const storedAuth = getStoredAuth();
+      const refreshToken = storedAuth?.tokens?.refresh ?? storedAuth?.tokens?.refreshToken;
+      if (!refreshToken) return;
+      try {
+        const auth = await refreshTokens(refreshToken);
+        const nextTokens = auth.tokens;
+        setTokens(nextTokens);
+        const nextUser = storedAuth?.user ?? null;
+        window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: nextUser, tokens: nextTokens }));
+      } catch {
+        setUser(null);
+        setTokens(null);
+        window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    }, 13 * 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <AuthContext.Provider

@@ -98,12 +98,31 @@ export async function register(payload: {
   email: string;
   password: string;
   acceptTerms: boolean;
-}) {
-  const response = await request<unknown>("/auth/register", {
+}): Promise<{ email: string; message?: string }> {
+  const response = await request<Record<string, unknown>>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = readRecord(response.data);
+  return {
+    email: typeof data.email === "string" ? data.email : payload.email,
+    message: typeof response.message === "string" ? response.message : undefined,
+  };
+}
+
+export async function confirmEmailByOtp(payload: { email: string; code: string }) {
+  const response = await request<unknown>("/auth/email/verify/otp", {
     method: "POST",
     body: JSON.stringify(payload),
   });
   return normalizeAuthSuccess(response);
+}
+
+export async function resendEmailVerification(email: string) {
+  return request<{ message?: string }>("/auth/email/verify/resend", {
+    method: "POST",
+    body: JSON.stringify({ email, sendOtp: true, sendLink: false }),
+  });
 }
 
 export async function login(payload: { email: string; password: string }) {
@@ -158,6 +177,21 @@ export async function resetPasswordWithOtp(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function refreshTokens(refreshToken: string) {
+  const response = await request<unknown>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
+  });
+  return normalizeAuthSuccess(response);
+}
+
+export async function logout(refreshToken: string) {
+  await request<unknown>("/auth/logout", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
+  }).catch(() => {});
 }
 
 export async function registerFcmToken(
