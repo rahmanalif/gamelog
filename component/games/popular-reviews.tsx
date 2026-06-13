@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import ReviewCard, { ReviewData } from "./review-card";
 
-const REVIEWS = [
+const REVIEWS: ReviewData[] = [
   {
     id: 1,
     game: "Elden Ring",
@@ -84,42 +85,13 @@ export default function PopularReviews() {
       <div className="border-b border-surface-variant pb-2">
         <h2 className="font-display text-headline-sm text-on-surface">Popular Reviews This Week</h2>
       </div>
-      <div className="flex flex-col gap-0 border border-surface-variant rounded bg-surface-container-low overflow-hidden">
-        {currentReviews.map((review) => (
-          <div key={review.id} className="p-4 border-b border-surface-variant last:border-b-0 flex gap-4 hover:bg-surface-container transition-colors cursor-pointer">
-            <div className="w-16 h-24 flex-shrink-0 bg-surface-variant rounded overflow-hidden border border-surface-variant">
-              <img alt={`${review.game} Poster`} className="w-full h-full object-cover" src={review.poster} />
-            </div>
-            <div className="flex flex-col gap-1 flex-grow">
-              <div className="flex flex-col gap-1">
-                <h3 className="font-display text-headline-sm text-on-surface leading-none mb-1">{review.game}</h3>
-                <div className="flex flex-col gap-1.5">
-                  {/* User Row - Name made bigger */}
-                  <div className="flex items-center gap-2">
-                    <img alt={review.user} src={review.avatar} className="w-5 h-5 rounded-full object-cover border border-outline-variant/30" />
-                    <span className="text-on-surface font-bold text-base">{review.user}</span>
-                  </div>
-                  
-                  {/* Metadata Row - Year, Stars, and Likes */}
-                  <div className="flex items-center gap-3 text-on-surface-variant font-label-sm text-label-sm flex-wrap">
-                    <span className="font-bold opacity-60">{review.year}</span>
-                    <div className="flex items-center text-primary gap-0">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: i < review.rating ? "'FILL' 1" : "'FILL' 0" }}>star</span>
-                      ))}
-                    </div>
-                    <div className="w-1 h-1 rounded-full bg-surface-variant"></div>
-                    <span className="flex items-center gap-1 hover:text-primary cursor-pointer">
-                      <span className="material-symbols-outlined text-[14px]">thumb_up</span>
-                      {review.likes}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <p className="font-body text-body-md text-on-surface-variant mt-2 line-clamp-2 leading-relaxed">
-                {review.content}
-              </p>
-            </div>
+      <div className="flex flex-col gap-0 border border-surface-variant rounded bg-surface-container-low overflow-hidden shadow-lg">
+        {currentReviews.map((review, index) => (
+          <div key={review.id}>
+            <ReviewCard review={review} />
+            {index < currentReviews.length - 1 && (
+              <div className="h-px bg-surface-variant w-full" />
+            )}
           </div>
         ))}
       </div>

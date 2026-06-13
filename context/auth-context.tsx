@@ -5,7 +5,7 @@ import AuthModal from "@/component/auth-modal";
 import { logout as apiLogout, refreshTokens } from "@/lib/auth-api";
 import type { AuthSuccess, AuthTokens, AuthUser } from "@/lib/auth-api";
 
-type User = AuthUser & { avatar: string };
+type User = AuthUser;
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -24,11 +24,6 @@ const AuthContext = createContext<AuthContextType>({
   completeAuth: () => {},
   signOut: () => {},
 });
-
-const MOCK_USER: User = {
-  username: "PEWDIEPIE",
-  avatar: "/users/pewdiepie.jpg",
-};
 
 const AUTH_STORAGE_KEY = "gamelog.auth";
 
@@ -69,10 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const completeAuth = (auth: AuthSuccess) => {
-    const nextUser = {
-      ...(auth.user ?? MOCK_USER),
-      avatar: auth.user?.avatar ?? MOCK_USER.avatar,
-    };
+    const nextUser = auth.user ?? null;
 
     setUser(nextUser);
     setTokens(auth.tokens);
@@ -102,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const auth = await refreshTokens(refreshToken);
         const nextTokens = auth.tokens;
         setTokens(nextTokens);
-        const nextUser = storedAuth?.user ?? null;
+        const nextUser = auth.user ?? storedAuth?.user ?? null;
+        setUser(nextUser);
         window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: nextUser, tokens: nextTokens }));
       } catch {
         setUser(null);

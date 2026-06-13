@@ -5,6 +5,8 @@ export type AuthTokens = {
   refresh?: string;
   accessToken?: string;
   refreshToken?: string;
+  access_token?: string;
+  refresh_token?: string;
 };
 
 export type AuthUser = {
@@ -62,22 +64,108 @@ function readRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+function readString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+
+  return undefined;
+}
+
+function normalizeTokens(root: Record<string, unknown>, data: Record<string, unknown>): AuthTokens {
+  const tokenSource = readRecord(root.tokens ?? data.tokens ?? root.auth ?? data.auth);
+  const access = readString(
+    tokenSource.access,
+    tokenSource.accessToken,
+    tokenSource.access_token,
+    root.access,
+    root.accessToken,
+    root.access_token,
+    data.access,
+    data.accessToken,
+    data.access_token,
+  );
+  const refresh = readString(
+    tokenSource.refresh,
+    tokenSource.refreshToken,
+    tokenSource.refresh_token,
+    root.refresh,
+    root.refreshToken,
+    root.refresh_token,
+    data.refresh,
+    data.refreshToken,
+    data.refresh_token,
+  );
+
+  return {
+    ...tokenSource,
+    access,
+    refresh,
+    accessToken: readString(tokenSource.accessToken, access),
+    refreshToken: readString(tokenSource.refreshToken, refresh),
+  } as AuthTokens;
+}
+
 export function normalizeAuthSuccess(response: unknown): AuthSuccess {
   const root = readRecord(response);
   const data = readRecord(root.data);
-  const tokenSource = readRecord(root.tokens ?? data.tokens);
-  const userSource = readRecord(data.user ?? root.user ?? data.profile ?? root.profile ?? data);
-  const username = userSource.username ?? userSource.displayName ?? userSource.name;
+  const account = readRecord(data.account ?? root.account);
+  const userSource = readRecord(
+    data.user ??
+      root.user ??
+      data.currentUser ??
+      root.currentUser ??
+      data.profile ??
+      root.profile ??
+      account.user ??
+      account.profile ??
+      data,
+  );
+  const profile = readRecord(userSource.profile);
+  const username = readString(
+    userSource.username,
+    userSource.userName,
+    userSource.displayName,
+    userSource.name,
+    userSource.handle,
+    profile.username,
+    profile.userName,
+    profile.displayName,
+    profile.name,
+    data.username,
+    data.userName,
+    root.username,
+    root.userName,
+  );
+  const email = readString(userSource.email, profile.email, data.email, root.email);
+  const avatar = readString(
+    userSource.avatar,
+    userSource.avatarUrl,
+    userSource.avatarURL,
+    userSource.image,
+    userSource.imageUrl,
+    userSource.imageURL,
+    userSource.profileImage,
+    userSource.profileImageUrl,
+    userSource.photo,
+    userSource.photoUrl,
+    profile.avatar,
+    profile.avatarUrl,
+    profile.image,
+    profile.imageUrl,
+    profile.profileImage,
+    profile.profileImageUrl,
+  );
 
   return {
-    tokens: tokenSource as AuthTokens,
+    tokens: normalizeTokens(root, data),
     user:
-      typeof username === "string"
+      username || email
         ? {
-            id: typeof userSource.id === "string" ? userSource.id : undefined,
-            username,
-            email: typeof userSource.email === "string" ? userSource.email : undefined,
-            avatar: typeof userSource.avatar === "string" ? userSource.avatar : undefined,
+            id: readString(userSource.id, profile.id),
+            username: username ?? email?.split("@")[0] ?? "Account",
+            email,
+            avatar,
           }
         : undefined,
     message: typeof root.message === "string" ? root.message : undefined,

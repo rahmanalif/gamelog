@@ -4,6 +4,7 @@ import Hero from "@/component/hero";
 import PopularGamesGrid from "@/component/games/popular-games-grid";
 import Features from "@/component/features";
 import RecentActivity from "@/component/recent-activity";
+import FeaturedLists from "@/component/lists/featured-lists";
 
 export default function Home() {
   return (
@@ -15,6 +16,16 @@ export default function Home() {
       {/* Main Content Container - constrained to 1100px */}
       <div className="max-w-[1100px] mx-auto px-gutter py-12 flex flex-col gap-12 w-full">
         <PopularGamesGrid />
+        
+        <section className="flex flex-col gap-stack-sm">
+          <div className="flex justify-between items-end border-b border-surface-variant pb-2">
+            <h2 className="font-display text-headline-md text-on-surface">Popular Lists</h2>
+          </div>
+          <div className="mt-6">
+            <FeaturedLists hideHeader={true} />
+          </div>
+        </section>
+
         <Features />
         <RecentActivity />
       </div>

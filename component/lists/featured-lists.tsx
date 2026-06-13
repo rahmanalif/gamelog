@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import GameStack from "../games/game-stack";
 
 interface ListData {
   id: number;
@@ -124,7 +125,7 @@ const FRIENDS_LISTS: ListData[] = [
   }
 ];
 
-export default function FeaturedLists({ activeFilter = "TRENDING" }: { activeFilter?: string }) {
+export default function FeaturedLists({ activeFilter = "TRENDING", hideHeader = false }: { activeFilter?: string, hideHeader?: boolean }) {
   const getListData = () => {
     switch (activeFilter) {
       case "TOP RATED": return TOP_RATED_LISTS;
@@ -137,29 +138,29 @@ export default function FeaturedLists({ activeFilter = "TRENDING" }: { activeFil
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4 border-b border-surface-variant pb-2">
-        <h2 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest font-bold">
-          {activeFilter === "TRENDING" ? "Featured Lists" : activeFilter === "TOP RATED" ? "All-Time Top Rated" : "Lists from Friends"}
-        </h2>
-        <Link href="/lists" className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 font-bold tracking-widest uppercase">
-          ALL • OFFICIAL
-        </Link>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 min-h-[220px]">
+      {!hideHeader && (
+        <div className="flex items-center justify-between mb-4 border-b border-surface-variant pb-2">
+          <h2 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest font-bold">
+            {activeFilter === "TRENDING" ? "Featured Lists" : activeFilter === "TOP RATED" ? "All-Time Top Rated" : "Lists from Friends"}
+          </h2>
+          <Link href="/lists" className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 font-bold tracking-widest uppercase">
+            ALL • OFFICIAL
+          </Link>
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-16">
         {lists.map((list) => (
-          <Link key={list.id} href={`/lists/${list.title.toLowerCase().replace(/ /g, '-')}`} className="group cursor-pointer flex flex-col animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex h-32 mb-3 rounded-lg overflow-hidden border border-surface-variant group-hover:border-primary transition-colors shadow-sm">
-              {list.images.map((img, i) => (
-                <img 
-                  key={i} 
-                  alt={`Game ${i + 1}`} 
-                  className={`w-1/4 h-full object-cover ${i < 3 ? 'border-r border-surface-variant' : ''}`} 
-                  src={img} 
-                />
-              ))}
-            </div>
-            <h3 className="font-headline text-[18px] leading-tight text-on-surface group-hover:text-primary transition-colors font-bold mb-1 truncate">{list.title}</h3>
-            <div className="flex items-center gap-2 text-on-surface-variant font-label-sm text-[11px]">
+          <div key={list.id} className="flex flex-col">
+            <GameStack
+              images={list.images}
+              title={list.title}
+              href={`/lists/${list.title.toLowerCase().replace(/ /g, '-')}`}
+              gamesCount={Number(list.gamesCount.replace(/\D/g, ''))}
+              likes={list.likes}
+              comments={list.comments}
+            />
+            {/* Custom footer for FeaturedLists to show Author */}
+            <div className="flex items-center gap-2 mt-1 text-on-surface-variant font-label-sm text-[11px]">
               <div className="flex items-center gap-1.5 shrink-0">
                 {list.isOfficial ? (
                   <span className="w-4 h-4 rounded bg-primary text-on-primary flex items-center justify-center text-[9px] font-black">GL</span>
@@ -172,23 +173,10 @@ export default function FeaturedLists({ activeFilter = "TRENDING" }: { activeFil
                     )}
                   </div>
                 )}
-                <span className="font-bold truncate max-w-[80px]">{list.author}</span>
+                <span className="font-bold truncate max-w-[120px]">{list.author}</span>
               </div>
-              <span className="text-on-surface-variant opacity-60 shrink-0">{list.gamesCount}</span>
-              {list.likes && (
-                <div className="flex items-center gap-2 ml-auto shrink-0">
-                  <span className="flex items-center gap-0.5 text-on-surface-variant opacity-60">
-                    <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span> {list.likes}
-                  </span>
-                  {list.comments && (
-                    <span className="flex items-center gap-0.5 text-on-surface-variant opacity-60">
-                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span> {list.comments}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
-          </Link>
+          </div>
         ))}
         {lists.length === 0 && (
           <div className="col-span-full py-12 text-center text-on-surface-variant opacity-60">

@@ -127,6 +127,7 @@ function CustomDatePicker({ value, onChange }: { value: string; onChange: (v: st
 interface LogGameModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSaved?: () => void | Promise<void>;
   gameTitle?: string;
   gamePoster?: string;
   platforms?: GameMetaItem[];
@@ -177,6 +178,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 export default function LogGameModal({
   isOpen,
   onClose,
+  onSaved,
   gameTitle = "Elden Ring",
   gamePoster = "/elder.jpg",
   platforms = [],
@@ -219,6 +221,7 @@ export default function LogGameModal({
         finished,
         containsSpoilers,
       });
+      await onSaved?.();
       onClose();
       setReview("");
       setRating(0);

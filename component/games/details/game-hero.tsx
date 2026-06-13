@@ -127,6 +127,26 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
     }
   };
 
+  const refreshGameFromBackend = async () => {
+    if (!slug) return;
+
+    const freshGame = await getGame(slug);
+    setCurrentGame(freshGame);
+    setIsLiked(freshGame.currentUser?.isLiked ?? false);
+    setIsWishlisted(freshGame.currentUser?.isInWatchlist ?? false);
+    setLikeCount(freshGame.likeCount ?? 0);
+    setWatchlistCount(freshGame.watchlistCount ?? 0);
+  };
+
+  const handleLogSaved = async () => {
+    try {
+      await refreshGameFromBackend();
+      setActionError("");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unable to refresh game details");
+    }
+  };
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter md:gap-8 lg:gap-12 relative">
@@ -317,6 +337,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
       <LogGameModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
+        onSaved={handleLogSaved}
         gameTitle={title}
         gamePoster={currentGame?.coverImage ?? "/elder.jpg"}
         platforms={currentGame?.platforms ?? []}
@@ -330,4 +351,3 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
     </>
   );
 }
-

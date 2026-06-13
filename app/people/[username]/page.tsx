@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/component/navbar";
@@ -7,6 +7,7 @@ import Footer from "@/component/footer";
 import ProfileHeader from "@/component/people/profile/profile-header";
 import ProfileNav from "@/component/people/profile/profile-nav";
 import GameCard from "@/component/game-card";
+import GameStack from "@/component/games/game-stack";
 import Image from "next/image";
 
 const DIARY_ENTRIES = [
@@ -142,24 +143,12 @@ export default function UserProfilePage() {
                   </h2>
                   <span className="text-label-sm font-bold text-on-surface-variant">45</span>
                 </div>
-                <div className="relative h-40 group cursor-pointer">
-                  {games.slice(0, 4).map((game, i) => (
-                    <div
-                      key={i}
-                      className="absolute rounded border border-surface-variant shadow-2xl overflow-hidden transition-all duration-300 group-hover:-translate-y-2"
-                      style={{
-                        left: `${i * 30}px`,
-                        top: `${i * 10}px`,
-                        zIndex: 40 - i,
-                        width: "100px",
-                        aspectRatio: "2/3",
-                        transform: `rotate(${i * 2 - 4}deg)`,
-                      }}
-                    >
-                      <Image src={game.img} alt={game.title} fill className="object-cover" />
-                    </div>
-                  ))}
-                </div>
+                <GameStack 
+                  images={games.slice(0, 4).map(g => g.img)}
+                  title="My Watchlist"
+                  href={`/people/${username}?tab=Watchlist`}
+                  showDetails={false}
+                />
               </section>
 
               <section>
@@ -483,64 +472,17 @@ export default function UserProfilePage() {
                 <span className="material-symbols-outlined text-[16px]">add</span> New List
               </Link>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-12 gap-x-8">
               {PROFILE_LISTS.map((list) => (
-                <div
+                <GameStack
                   key={list.id}
-                  className="group flex flex-col"
-                >
-                  <div className="relative flex h-32 mb-3 rounded-lg overflow-hidden border border-surface-variant group-hover:border-primary transition-colors shadow-sm">
-                    {list.images.map((img, i) => (
-                      <img
-                        key={i}
-                        alt="Game"
-                        className={`w-1/4 h-full object-cover ${i < 3 ? "border-r border-surface-variant" : ""}`}
-                        src={img}
-                      />
-                    ))}
-                    
-                    {/* Hover Overlay with Edit Button */}
-                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center z-20">
-                      <Link 
-                        href="/lists/edit" 
-                        className="bg-primary text-on-primary font-bold font-label-md px-4 py-2 rounded flex items-center gap-1 shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
-                      >
-                        <span className="material-symbols-outlined text-sm">edit</span> EDIT LIST
-                      </Link>
-                    </div>
-
-                    {/* View List Background Link */}
-                    <Link href={`/lists/${list.id}`} className="absolute inset-0 z-10" />
-                  </div>
-
-                  <Link href={`/lists/${list.id}`}>
-                    <h3 className="font-headline text-[18px] leading-tight text-on-surface group-hover:text-primary transition-colors font-bold mb-1">
-                      {list.title}
-                    </h3>
-                  </Link>
-                  <div className="flex items-center gap-3 text-on-surface-variant font-label-sm text-[11px]">
-                    <span className="font-bold">{list.gamesCount} games</span>
-                    <span className="opacity-60">•</span>
-                    <span className="flex items-center gap-0.5 opacity-60">
-                      <span
-                        className="material-symbols-outlined text-[10px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        favorite
-                      </span>{" "}
-                      {list.likes}
-                    </span>
-                    <span className="flex items-center gap-0.5 opacity-60">
-                      <span
-                        className="material-symbols-outlined text-[10px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        chat_bubble
-                      </span>{" "}
-                      {list.comments}
-                    </span>
-                  </div>
-                </div>
+                  images={list.images}
+                  title={list.title}
+                  href={`/lists/${list.id}`}
+                  gamesCount={list.gamesCount}
+                  likes={list.likes}
+                  comments={list.comments}
+                />
               ))}
             </div>
           </div>

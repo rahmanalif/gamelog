@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { GameSummary, searchGames } from '@/lib/game-api';
+
+function getInitial(name?: string | null) {
+  return (name?.trim().charAt(0) || 'A').toUpperCase();
+}
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -15,8 +18,12 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<GameSummary[]>([]);
+  const [avatarError, setAvatarError] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const visibleSearchResults = searchQuery.trim().length > 1 ? searchResults : [];
+  const username = user?.username ?? 'Account';
+  const profileHref = `/people/${encodeURIComponent(username)}`;
+  const showAvatarImage = Boolean(user?.avatar && !avatarError);
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -50,6 +57,10 @@ export default function Navbar() {
       window.clearTimeout(timeoutId);
     };
   }, [searchQuery]);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
 
   const clearSearch = () => {
     setSearchQuery('');
@@ -186,29 +197,32 @@ export default function Navbar() {
                     PRO
                   </span> */}
                   <span className="text-label-md font-bold text-white tracking-widest uppercase leading-none">
-                    {user?.username}
+                    {username}
                   </span>
                 </div>
 
                 {/* Avatar + Dropdown */}
                 <div className="relative group cursor-pointer">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-surface-variant group-hover:border-primary transition-colors">
-                    <Image
-                      src={user?.avatar ?? '/users/pewdiepie.jpg'}
-                      alt={user?.username ?? ''}
-                      width={32}
-                      height={32}
-                      className="object-cover"
-                    />
+                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-surface-variant group-hover:border-primary transition-colors bg-primary text-[#00210b] flex items-center justify-center">
+                    {showAvatarImage ? (
+                      <img
+                        src={user?.avatar}
+                        alt={username}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarError(true)}
+                      />
+                    ) : (
+                      <span className="text-label-md font-black leading-none">{getInitial(username)}</span>
+                    )}
                   </div>
                   <div className="absolute right-0 top-full pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                     <div className="bg-surface-container border border-surface-variant rounded-lg shadow-xl w-48 py-2 overflow-hidden">
-                      <Link href={`/people/${user?.username}`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Profile</Link>
-                      <Link href={`/people/${user?.username}?tab=Activity`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Activity</Link>
-                      <Link href={`/people/${user?.username}?tab=Diary`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Diary</Link>
-                      <Link href={`/people/${user?.username}?tab=Reviews`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Reviews</Link>
-                      <Link href={`/people/${user?.username}?tab=Watchlist`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Watchlist</Link>
-                      <Link href={`/people/${user?.username}?tab=Lists`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Lists</Link>
+                      <Link href={profileHref} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Profile</Link>
+                      <Link href={`${profileHref}?tab=Activity`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Activity</Link>
+                      <Link href={`${profileHref}?tab=Diary`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Diary</Link>
+                      <Link href={`${profileHref}?tab=Reviews`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Reviews</Link>
+                      <Link href={`${profileHref}?tab=Watchlist`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Watchlist</Link>
+                      <Link href={`${profileHref}?tab=Lists`} className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Lists</Link>
                       <div className="h-px bg-surface-variant my-2" />
                       <Link href="/settings/profile" className="block px-4 py-2 text-label-md text-on-surface-variant hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold">Settings</Link>
                       <div className="h-px bg-surface-variant my-2" />
@@ -305,6 +319,46 @@ export default function Navbar() {
                     className="flex-1 bg-primary-container text-on-primary-fixed font-label-md text-label-md uppercase tracking-widest py-3 rounded-lg hover:bg-primary transition-all shadow-md active:scale-95"
                   >
                     + SIGN UP
+                  </button>
+                </div>
+              )}
+              {isLoggedIn && (
+                <div className="mt-2 rounded-lg border border-surface-variant bg-surface-container-low overflow-hidden">
+                  <Link
+                    href={profileHref}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3"
+                  >
+                    <div className="w-9 h-9 rounded-full overflow-hidden bg-primary text-[#00210b] flex items-center justify-center shrink-0">
+                      {showAvatarImage ? (
+                        <img
+                          src={user?.avatar}
+                          alt={username}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarError(true)}
+                        />
+                      ) : (
+                        <span className="text-label-md font-black leading-none">{getInitial(username)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-label-md font-bold text-white uppercase tracking-widest truncate">
+                        {username}
+                      </p>
+                      <p className="text-label-sm text-on-surface-variant uppercase tracking-widest">
+                        View Profile
+                      </p>
+                    </div>
+                  </Link>
+                  <div className="h-px bg-surface-variant" />
+                  <button
+                    onClick={() => {
+                      signOut();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-3 text-label-md text-primary hover:text-white hover:bg-surface-container-high transition-colors tracking-widest uppercase font-bold"
+                  >
+                    Sign Out
                   </button>
                 </div>
               )}
