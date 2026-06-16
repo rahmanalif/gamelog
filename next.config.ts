@@ -1,7 +1,22 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Disable client-side route cache for dynamic routes so list pages
+  // always re-fetch server components after create/edit/delete.
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+    },
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "media.rawg.io",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

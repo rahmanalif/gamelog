@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useAuth } from "@/context/auth-context";
+import { useAuthStore } from "@/store/auth.store";
 
 interface ProfileHeaderProps {
   username: string;
@@ -10,7 +10,9 @@ interface ProfileHeaderProps {
 }
 
 export default function ProfileHeader({ username, avatar }: ProfileHeaderProps) {
-  const { isLoggedIn, user, openAuthModal } = useAuth();
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const user = useAuthStore((s) => s.user);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
   const [avatarError, setAvatarError] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 

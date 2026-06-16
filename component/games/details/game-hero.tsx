@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/context/auth-context";
+import { useAuthStore } from "@/store/auth.store";
 import LogGameModal from "./log-game-modal";
 import AddToListModal from "./add-to-list-modal";
 import {
@@ -43,7 +43,8 @@ function descriptionToParagraphs(description?: string | null) {
 }
 
 export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameHeroProps) {
-  const { isLoggedIn, openAuthModal } = useAuth();
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [currentGame, setCurrentGame] = useState<GameDetail | null>(game ?? null);
@@ -346,6 +347,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
       <AddToListModal
         isOpen={isListModalOpen}
         onClose={() => setIsListModalOpen(false)}
+        gameId={currentGame?.id ? String(currentGame.id) : undefined}
         gameTitle={title}
       />
     </>

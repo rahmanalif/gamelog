@@ -2,72 +2,70 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { listCoverImages } from "@/lib/lists-api";
+import { useAddGameToListMutation, useGetMyListsQuery } from "@/store/lists-api.slice";
 
 interface AddToListModalProps {
   isOpen: boolean;
   onClose: () => void;
+  gameId?: string;
   gameTitle?: string;
 }
-
-const MY_LISTS = [
-  {
-    id: 1,
-    title: "My Favorite RPGs",
-    gamesCount: 12,
-    cover: "/games/download (10).jpg",
-  },
-  {
-    id: 2,
-    title: "PS2 Classics I Grew Up With",
-    gamesCount: 18,
-    cover: "/games/grandtheftautovicecity_pc.jpg",
-  },
-  {
-    id: 3,
-    title: "Best Action Games Ever",
-    gamesCount: 9,
-    cover: "/games/Devil May Cry 3_ Special Edition PS2 NTSC-J.jpg",
-  },
-  {
-    id: 4,
-    title: "Must-Play Horror",
-    gamesCount: 6,
-    cover: "/games/RE4 PS2 cover_ Resident Evil 4 ps2 cover.jpg",
-  },
-  {
-    id: 5,
-    title: "Games to Finish This Year",
-    gamesCount: 3,
-    cover: "/games/download (7).jpg",
-  },
-];
 
 export default function AddToListModal({
   isOpen,
   onClose,
+  gameId,
   gameTitle = "this game",
 }: AddToListModalProps) {
-  const [selected, setSelected] = useState<number[]>([]);
+  const { data: myLists, isLoading: loading, isError } = useGetMyListsQuery(
+    { limit: 50 },
+    { skip: !isOpen, refetchOnFocus: true, refetchOnReconnect: true },
+  );
+  const [addGameToList] = useAddGameToListMutation();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lists = myLists?.items ?? [];
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    setSelected([]);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const toggle = (id: number) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+  const toggle = (id: string) => {
+    setSelected((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
   };
 
-  const handleSave = () => {
-    onClose();
-    setSelected([]);
+  const handleSave = async () => {
+    if (!gameId) {
+      setError("Could not identify this game.");
+      return;
+    }
+    if (selected.length === 0) {
+      setError("Choose at least one list.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await Promise.all(selected.map((listId) => addGameToList({ listId, input: { gameId } }).unwrap()));
+      setSaving(false);
+      setSelected([]);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add this game to your list.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -82,22 +80,32 @@ export default function AddToListModal({
           <span className="material-symbols-outlined">close</span>
         </button>
 
-        {/* Header */}
         <div className="p-6 pb-4 border-b border-surface-variant">
-          <h2 className="font-display text-headline-sm text-white font-bold tracking-tight">
-            Add to List
-          </h2>
+          <h2 className="font-display text-headline-sm text-white font-bold tracking-tight">Add to List</h2>
           <p className="text-body-md text-on-surface-variant mt-1">
-            Add{" "}
-            <span className="text-white font-bold">{gameTitle}</span> to one of
-            your lists.
+            Add <span className="text-white font-bold">{gameTitle}</span> to one of your lists.
           </p>
         </div>
 
-        {/* Lists */}
         <div className="flex flex-col divide-y divide-surface-variant max-h-[360px] overflow-y-auto">
-          {MY_LISTS.map((list) => {
+          {loading && (
+            <div className="py-10 text-center text-on-surface-variant opacity-60 text-body-md">
+              Loading your lists…
+            </div>
+          )}
+          {(error || isError) && (
+            <div className="py-10 text-center text-error text-body-md">
+              {error ?? "Could not load your lists."}
+            </div>
+          )}
+          {!loading && !error && !isError && lists.length === 0 && (
+            <div className="py-10 text-center text-on-surface-variant opacity-60 text-body-md">
+              You have no lists yet.
+            </div>
+          )}
+          {!loading && lists.map((list) => {
             const isSelected = selected.includes(list.id);
+            const cover = listCoverImages(list, 1)[0];
             return (
               <button
                 key={list.id}
@@ -107,33 +115,26 @@ export default function AddToListModal({
                   isSelected ? "bg-surface-container-high" : ""
                 }`}
               >
-                <div className="w-9 h-12 shrink-0 rounded overflow-hidden border border-surface-variant shadow-sm">
-                  <img
-                    alt={list.title}
-                    src={list.cover}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-9 h-12 shrink-0 rounded overflow-hidden border border-surface-variant shadow-sm bg-surface-variant">
+                  {cover && (
+                    <img alt={list.title} src={cover} className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-label-md font-bold text-on-surface uppercase tracking-wide truncate">
                     {list.title}
                   </p>
                   <p className="text-label-sm text-on-surface-variant mt-0.5">
-                    {list.gamesCount} games
+                    {list._count.items} games
                   </p>
                 </div>
                 <div
                   className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-                    isSelected
-                      ? "bg-primary border-primary"
-                      : "border-surface-variant"
+                    isSelected ? "bg-primary border-primary" : "border-surface-variant"
                   }`}
                 >
                   {isSelected && (
-                    <span
-                      className="material-symbols-outlined text-[14px] text-[#00210b]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
+                    <span className="material-symbols-outlined text-[14px] text-[#00210b]" style={{ fontVariationSettings: "'FILL' 1" }}>
                       check
                     </span>
                   )}
@@ -143,7 +144,6 @@ export default function AddToListModal({
           })}
         </div>
 
-        {/* Footer */}
         <div className="p-6 pt-4 border-t border-surface-variant flex items-center justify-between gap-4">
           <Link
             href="/lists/new"
@@ -156,9 +156,10 @@ export default function AddToListModal({
           <button
             type="button"
             onClick={handleSave}
-            className="bg-primary text-[#00210b] px-7 py-2.5 rounded-lg font-bold tracking-[0.15em] hover:bg-primary-container transition-all shadow-lg active:scale-95 uppercase text-label-md"
+            disabled={saving || selected.length === 0}
+            className="bg-primary text-[#00210b] px-7 py-2.5 rounded-lg font-bold tracking-[0.15em] hover:bg-primary-container transition-all shadow-lg active:scale-95 uppercase text-label-md disabled:opacity-60"
           >
-            Done
+            {saving ? "Saving…" : "Done"}
           </button>
         </div>
       </div>

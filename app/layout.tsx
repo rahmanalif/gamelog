@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from "@/context/auth-context";
+import AuthInitializer from "@/component/auth-initializer";
+import ReduxProvider from "@/component/redux-provider";
 
 export const metadata: Metadata = {
   title: "Gamelog - Track games you've played.",
@@ -25,9 +26,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-background text-on-surface">
-        <AuthProvider>
+        <ReduxProvider>
+          <AuthInitializer />
           <main className="grow">{children}</main>
-        </AuthProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

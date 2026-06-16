@@ -9,6 +9,7 @@ import ProfileNav from "@/component/people/profile/profile-nav";
 import GameCard from "@/component/game-card";
 import GameStack from "@/component/games/game-stack";
 import Image from "next/image";
+import { getUserLists, listCoverImages, formatCount, type ListSummary } from "@/lib/lists-api";
 
 const DIARY_ENTRIES = [
   { id: 1, month: "June 2026", day: "09", title: "Elden Ring", poster: "/games/download (10).jpg", rating: 5, platform: "PC", note: "A living, breathing world — unmatched." },
@@ -82,6 +83,8 @@ export default function UserProfilePage() {
   const searchParams = useSearchParams();
   const username = (params.username as string) || "PEWDIEPIE";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "Profile");
+  const [userLists, setUserLists] = useState<ListSummary[]>([]);
+  const [listsLoading, setListsLoading] = useState(false);
   const [followingSet, setFollowingSet] = useState<Set<number>>(
     new Set(FOLLOWING_USERS.map((u) => u.id))
   );
@@ -98,6 +101,15 @@ export default function UserProfilePage() {
     const tab = searchParams.get("tab");
     if (tab) setActiveTab(tab);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab !== "Lists") return;
+    setListsLoading(true);
+    getUserLists(username, { limit: 24 })
+      .then((r) => setUserLists(r.items))
+      .catch(() => setUserLists([]))
+      .finally(() => setListsLoading(false));
+  }, [activeTab, username]);
 
   const avatar =
     username.toLowerCase() === "pewdiepie" ? "/users/pewdiepie.jpg" : "";
@@ -472,19 +484,34 @@ export default function UserProfilePage() {
                 <span className="material-symbols-outlined text-[16px]">add</span> New List
               </Link>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-12 gap-x-8">
-              {PROFILE_LISTS.map((list) => (
-                <GameStack
-                  key={list.id}
-                  images={list.images}
-                  title={list.title}
-                  href={`/lists/${list.id}`}
-                  gamesCount={list.gamesCount}
-                  likes={list.likes}
-                  comments={list.comments}
-                />
-              ))}
-            </div>
+            {listsLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-12 gap-x-8">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex flex-col gap-2 animate-pulse">
+                    <div className="aspect-[2/1] bg-surface-container rounded-lg" />
+                    <div className="h-4 bg-surface-container rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ) : userLists.length === 0 ? (
+              <div className="py-20 text-center text-on-surface-variant opacity-60">
+                No lists yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-12 gap-x-8">
+                {userLists.map((list) => (
+                  <GameStack
+                    key={list.id}
+                    images={listCoverImages(list, 4)}
+                    title={list.title}
+                    href={`/lists/${list.id}`}
+                    gamesCount={list._count.items}
+                    likes={formatCount(list.likeCount)}
+                    comments={formatCount(list.commentCount)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
 

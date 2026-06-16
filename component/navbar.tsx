@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/context/auth-context';
+import { useAuthStore } from '@/store/auth.store';
 import { GameSummary, searchGames } from '@/lib/game-api';
 
 function getInitial(name?: string | null) {
@@ -12,7 +12,10 @@ function getInitial(name?: string | null) {
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { isLoggedIn, user, openAuthModal, signOut } = useAuth();
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const user = useAuthStore((s) => s.user);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
+  const signOut = useAuthStore((s) => s.signOut);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
