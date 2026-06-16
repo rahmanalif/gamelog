@@ -17,6 +17,7 @@ export default function AuthInitializer() {
   }, [hydrate]);
 
   useEffect(() => {
+    refreshSession();
     const interval = window.setInterval(() => {
       refreshSession();
     }, 13 * 60 * 1000);

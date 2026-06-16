@@ -1,6 +1,8 @@
 "use client";
 
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
 import type {
   AddGameInput,
   CreateListInput,
@@ -12,7 +14,6 @@ import type {
 } from "@/lib/lists-api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-const AUTH_STORAGE_KEY = "gamelog.auth";
 
 type BackendEnvelope<T> = {
   success?: boolean;
@@ -30,26 +31,6 @@ type BackendPaginated<T> = {
     totalPages?: number;
   };
 };
-
-function getToken(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as {
-      tokens?: { access?: string | { token?: string }; accessToken?: string | { token?: string } };
-    };
-    const a = parsed.tokens?.access;
-    const b = parsed.tokens?.accessToken;
-    if (typeof a === "string") return a;
-    if (typeof (a as { token?: string })?.token === "string") return (a as { token: string }).token;
-    if (typeof b === "string") return b;
-    if (typeof (b as { token?: string })?.token === "string") return (b as { token: string }).token;
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function unwrapEnvelope<T>(raw: unknown): T {
   if (typeof raw === "object" && raw !== null && "data" in raw) {
@@ -77,16 +58,35 @@ function normalizePaginated<T>(raw: unknown): PaginatedLists {
   };
 }
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: API_BASE_URL,
+  prepareHeaders: (headers) => {
+    const token = getStoredAccessToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return headers;
+  },
+});
+
+const baseQueryWithRefresh: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+  args,
+  api,
+  extraOptions,
+) => {
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401) {
+    const token = await refreshStoredAuth();
+    if (token) {
+      result = await rawBaseQuery(args, api, extraOptions);
+    }
+  }
+
+  return result;
+};
+
 export const listsApi = createApi({
   reducerPath: "listsApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const token = getToken();
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithRefresh,
   tagTypes: ["List", "Lists", "MyLists"],
   endpoints: (builder) => ({
     getLists: builder.query<PaginatedLists, { sort?: ListSortOrder; page?: number; limit?: number } | void>({

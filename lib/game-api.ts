@@ -1,3 +1,5 @@
+import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
+
 export type GameSummary = {
   id: string | number;
   rawgId?: number;
@@ -97,7 +99,6 @@ export type LogGameInput = {
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-const AUTH_STORAGE_KEY = "gamelog.auth";
 
 type ApiEnvelope<T> = {
   success?: boolean;
@@ -105,27 +106,6 @@ type ApiEnvelope<T> = {
   statusCode?: number;
   data?: T;
 };
-
-function getStoredAccessToken() {
-  if (typeof window === "undefined") return undefined;
-
-  try {
-    const storedAuth = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!storedAuth) return undefined;
-    const parsed = JSON.parse(storedAuth) as {
-      tokens?: { access?: string | { token?: string }; accessToken?: string | { token?: string } };
-    };
-    const access = parsed.tokens?.access;
-    const accessToken = parsed.tokens?.accessToken;
-    if (typeof access === "string") return access;
-    if (typeof access?.token === "string") return access.token;
-    if (typeof accessToken === "string") return accessToken;
-    if (typeof accessToken?.token === "string") return accessToken.token;
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>) {
   const url = new URL(`${API_BASE_URL}${path}`);
@@ -307,11 +287,22 @@ async function gameRequest<T>(
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(buildUrl(path, params), {
+  let response = await fetch(buildUrl(path, params), {
     ...init,
     headers,
     cache: "no-store",
   });
+  if (response.status === 401 && token) {
+    const freshToken = await refreshStoredAuth();
+    if (freshToken) {
+      headers.set("Authorization", `Bearer ${freshToken}`);
+      response = await fetch(buildUrl(path, params), {
+        ...init,
+        headers,
+        cache: "no-store",
+      });
+    }
+  }
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -332,11 +323,22 @@ async function gameEnvelopeRequest(
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(buildUrl(path, params), {
+  let response = await fetch(buildUrl(path, params), {
     ...init,
     headers,
     cache: "no-store",
   });
+  if (response.status === 401 && token) {
+    const freshToken = await refreshStoredAuth();
+    if (freshToken) {
+      headers.set("Authorization", `Bearer ${freshToken}`);
+      response = await fetch(buildUrl(path, params), {
+        ...init,
+        headers,
+        cache: "no-store",
+      });
+    }
+  }
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {

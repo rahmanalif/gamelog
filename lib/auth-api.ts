@@ -1,12 +1,14 @@
 "use client";
 
+export type AuthTokenValue = string | { token?: string; value?: string; expiresAt?: string | Date };
+
 export type AuthTokens = {
-  access?: string;
-  refresh?: string;
-  accessToken?: string;
-  refreshToken?: string;
-  access_token?: string;
-  refresh_token?: string;
+  access?: AuthTokenValue;
+  refresh?: AuthTokenValue;
+  accessToken?: AuthTokenValue;
+  refreshToken?: AuthTokenValue;
+  access_token?: AuthTokenValue;
+  refresh_token?: AuthTokenValue;
 };
 
 export type AuthUser = {

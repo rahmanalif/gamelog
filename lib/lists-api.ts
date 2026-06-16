@@ -1,5 +1,6 @@
+import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-const AUTH_STORAGE_KEY = "gamelog.auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,26 +64,6 @@ export type PaginatedLists = {
 
 // ─── Internals ────────────────────────────────────────────────────────────────
 
-function getToken(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as {
-      tokens?: { access?: string | { token?: string }; accessToken?: string | { token?: string } };
-    };
-    const a = parsed.tokens?.access;
-    const b = parsed.tokens?.accessToken;
-    if (typeof a === "string") return a;
-    if (typeof (a as { token?: string })?.token === "string") return (a as { token: string }).token;
-    if (typeof b === "string") return b;
-    if (typeof (b as { token?: string })?.token === "string") return (b as { token: string }).token;
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
   const url = new URL(`${API_BASE_URL}${path}`);
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -115,11 +96,18 @@ async function listRequest<T>(
   params?: Record<string, string | number | undefined>,
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  const token = getToken();
+  const token = getStoredAccessToken();
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(buildUrl(path, params), { ...init, headers, cache: "no-store" });
+  let res = await fetch(buildUrl(path, params), { ...init, headers, cache: "no-store" });
+  if (res.status === 401 && token) {
+    const freshToken = await refreshStoredAuth();
+    if (freshToken) {
+      headers.set("Authorization", `Bearer ${freshToken}`);
+      res = await fetch(buildUrl(path, params), { ...init, headers, cache: "no-store" });
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(getError(data, res.statusText));
   return data as T;
