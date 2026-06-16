@@ -72,9 +72,22 @@ function readString(...values: unknown[]) {
   return undefined;
 }
 
+function readTokenString(...values: unknown[]) {
+  for (const value of values) {
+    const direct = readString(value);
+    if (direct) return direct;
+
+    const record = readRecord(value);
+    const nested = readString(record.token, record.value);
+    if (nested) return nested;
+  }
+
+  return undefined;
+}
+
 function normalizeTokens(root: Record<string, unknown>, data: Record<string, unknown>): AuthTokens {
   const tokenSource = readRecord(root.tokens ?? data.tokens ?? root.auth ?? data.auth);
-  const access = readString(
+  const access = readTokenString(
     tokenSource.access,
     tokenSource.accessToken,
     tokenSource.access_token,
@@ -85,7 +98,7 @@ function normalizeTokens(root: Record<string, unknown>, data: Record<string, unk
     data.accessToken,
     data.access_token,
   );
-  const refresh = readString(
+  const refresh = readTokenString(
     tokenSource.refresh,
     tokenSource.refreshToken,
     tokenSource.refresh_token,
@@ -101,8 +114,8 @@ function normalizeTokens(root: Record<string, unknown>, data: Record<string, unk
     ...tokenSource,
     access,
     refresh,
-    accessToken: readString(tokenSource.accessToken, access),
-    refreshToken: readString(tokenSource.refreshToken, refresh),
+    accessToken: readTokenString(tokenSource.accessToken, access),
+    refreshToken: readTokenString(tokenSource.refreshToken, refresh),
   } as AuthTokens;
 }
 

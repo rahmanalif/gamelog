@@ -113,9 +113,15 @@ function getStoredAccessToken() {
     const storedAuth = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (!storedAuth) return undefined;
     const parsed = JSON.parse(storedAuth) as {
-      tokens?: { access?: string; accessToken?: string };
+      tokens?: { access?: string | { token?: string }; accessToken?: string | { token?: string } };
     };
-    return parsed.tokens?.access ?? parsed.tokens?.accessToken;
+    const access = parsed.tokens?.access;
+    const accessToken = parsed.tokens?.accessToken;
+    if (typeof access === "string") return access;
+    if (typeof access?.token === "string") return access.token;
+    if (typeof accessToken === "string") return accessToken;
+    if (typeof accessToken?.token === "string") return accessToken.token;
+    return undefined;
   } catch {
     return undefined;
   }

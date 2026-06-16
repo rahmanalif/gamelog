@@ -18,12 +18,12 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<GameSummary[]>([]);
-  const [avatarError, setAvatarError] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const visibleSearchResults = searchQuery.trim().length > 1 ? searchResults : [];
   const username = user?.username ?? 'Account';
   const profileHref = `/people/${encodeURIComponent(username)}`;
-  const showAvatarImage = Boolean(user?.avatar && !avatarError);
+  const showAvatarImage = Boolean(user?.avatar && failedAvatar !== user.avatar);
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -57,10 +57,6 @@ export default function Navbar() {
       window.clearTimeout(timeoutId);
     };
   }, [searchQuery]);
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [user?.avatar]);
 
   const clearSearch = () => {
     setSearchQuery('');
@@ -209,7 +205,7 @@ export default function Navbar() {
                         src={user?.avatar}
                         alt={username}
                         className="w-full h-full object-cover"
-                        onError={() => setAvatarError(true)}
+                        onError={() => setFailedAvatar(user?.avatar ?? null)}
                       />
                     ) : (
                       <span className="text-label-md font-black leading-none">{getInitial(username)}</span>
@@ -335,7 +331,7 @@ export default function Navbar() {
                           src={user?.avatar}
                           alt={username}
                           className="w-full h-full object-cover"
-                          onError={() => setAvatarError(true)}
+                          onError={() => setFailedAvatar(user?.avatar ?? null)}
                         />
                       ) : (
                         <span className="text-label-md font-black leading-none">{getInitial(username)}</span>
