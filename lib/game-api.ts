@@ -257,6 +257,29 @@ function normalizeGameDetail(game: unknown): GameDetail {
   };
 }
 
+function normalizeGameReview(review: unknown): GameReview {
+  const record = review as Record<string, unknown>;
+  const user = (record.user ?? {}) as Record<string, unknown>;
+  const profile = (user.profile ?? {}) as Record<string, unknown>;
+
+  return {
+    id: String(record.id ?? ""),
+    rating: toNullableNumber(record.rating),
+    reviewText: (record.reviewText ?? record.review ?? null) as string | null,
+    playedAt: (record.playedAt ?? null) as string | null,
+    finished: Boolean(record.finished),
+    containsSpoilers: Boolean(record.containsSpoilers),
+    likesCount: toNumber(record.likesCount ?? record.likeCount),
+    commentsCount: toNumber(record.commentsCount ?? record.commentCount),
+    createdAt: (record.createdAt ?? null) as string | undefined,
+    user: {
+      id: typeof user.id === "string" ? user.id : undefined,
+      username: String(profile.username ?? profile.name ?? user.username ?? user.name ?? "Player"),
+      avatar: (profile.avatarUrl ?? profile.avatar ?? user.avatarUrl ?? user.avatar ?? null) as string | null,
+    },
+  };
+}
+
 function mapSort(filters: GameFilters) {
   if (filters.orderBy || filters.order) {
     return { orderBy: filters.orderBy, order: filters.order };
@@ -380,44 +403,48 @@ export async function getGame(slug: string) {
 }
 
 export async function getGameReviews(
-  rawgId: number,
+  gameId: string | number,
   params: { page?: number; limit?: number; sort?: string } = {},
 ) {
-  const data = await gameRequest<unknown>(`/games/${rawgId}/reviews`, {}, params);
-  return normalizeItems<GameReview>(data);
+  const data = await gameRequest<unknown>(`/games/${gameId}/reviews`, {}, params);
+  const normalized = normalizeItems<unknown>(data);
+  return {
+    ...normalized,
+    items: normalized.items.map(normalizeGameReview),
+  };
 }
 
-export function logGame(rawgId: number, data: LogGameInput) {
-  return gameRequest<{ message: string; log: unknown }>(`/games/${rawgId}/logs`, {
+export function logGame(gameId: string | number, data: LogGameInput) {
+  return gameRequest<{ message: string; log: unknown }>(`/games/${gameId}/logs`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export function likeGame(rawgId: number) {
+export function likeGame(gameId: string | number) {
   return gameRequest<{ message: string; isLiked: boolean; likeCount: number }>(
-    `/games/${rawgId}/like`,
+    `/games/${gameId}/like`,
     { method: "POST" },
   );
 }
 
-export function unlikeGame(rawgId: number) {
+export function unlikeGame(gameId: string | number) {
   return gameRequest<{ message: string; isLiked: boolean; likeCount: number }>(
-    `/games/${rawgId}/like`,
+    `/games/${gameId}/like`,
     { method: "DELETE" },
   );
 }
 
-export function addToWatchlist(rawgId: number) {
+export function addToWatchlist(gameId: string | number) {
   return gameRequest<{ message: string; isInWatchlist: boolean; watchlistCount: number }>(
-    `/games/${rawgId}/watchlist`,
+    `/games/${gameId}/watchlist`,
     { method: "POST" },
   );
 }
 
-export function removeFromWatchlist(rawgId: number) {
+export function removeFromWatchlist(gameId: string | number) {
   return gameRequest<{ message: string; isInWatchlist: boolean; watchlistCount: number }>(
-    `/games/${rawgId}/watchlist`,
+    `/games/${gameId}/watchlist`,
     { method: "DELETE" },
   );
 }

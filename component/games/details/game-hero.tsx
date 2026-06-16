@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/auth.store";
@@ -81,15 +82,16 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
     () => descriptionToParagraphs(currentGame?.description),
     [currentGame?.description],
   );
-  const rating = currentGame?.averageRating ?? currentGame?.rawgRating ?? 0;
-  const roundedRating = Math.round(rating * 2) / 2;
+  const ratingCount = currentGame?.ratingCount ?? 0;
+  const userRating = ratingCount > 0 ? currentGame?.averageRating ?? 0 : 0;
+  const roundedRating = Math.round(userRating * 2) / 2;
   const platforms = currentGame?.platforms?.length
     ? currentGame.platforms.map((platform) => platform.name)
     : ["PlayStation 5", "PlayStation 4", "Xbox Series X/S", "PC (Steam)"];
-  const rawgId = currentGame?.rawgId;
+  const gameId = currentGame?.id ? String(currentGame.id) : undefined;
 
   const toggleLike = async () => {
-    if (!rawgId) return;
+    if (!gameId) return;
     setActionError("");
     const previousLiked = isLiked;
     const previousCount = likeCount;
@@ -97,7 +99,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
     setLikeCount(Math.max(0, previousCount + (previousLiked ? -1 : 1)));
 
     try {
-      const response = previousLiked ? await unlikeGame(rawgId) : await likeGame(rawgId);
+      const response = previousLiked ? await unlikeGame(gameId) : await likeGame(gameId);
       setIsLiked(response.isLiked);
       setLikeCount(response.likeCount);
     } catch (err) {
@@ -108,7 +110,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
   };
 
   const toggleWatchlist = async () => {
-    if (!rawgId) return;
+    if (!gameId) return;
     setActionError("");
     const previousWishlisted = isWishlisted;
     const previousCount = watchlistCount;
@@ -117,8 +119,8 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
 
     try {
       const response = previousWishlisted
-        ? await removeFromWatchlist(rawgId)
-        : await addToWatchlist(rawgId);
+        ? await removeFromWatchlist(gameId)
+        : await addToWatchlist(gameId);
       setIsWishlisted(response.isInWatchlist);
       setWatchlistCount(response.watchlistCount);
     } catch (err) {
@@ -153,10 +155,13 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
       <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter md:gap-8 lg:gap-12 relative">
         <div className="md:col-span-4 lg:col-span-3">
           <div className="relative w-full aspect-2/3 rounded-lg overflow-hidden border border-surface-variant group shadow-[0_0_40px_rgba(0,230,118,0.05)] transition-all duration-300 hover:border-primary-container hover:shadow-[0_0_40px_rgba(0,230,118,0.15)]">
-            <img
+            <Image
               alt={`${title} Box Art`}
-              className="w-full h-full object-cover"
               src={currentGame?.coverImage ?? "/elder.jpg"}
+              fill
+              sizes="(max-width: 768px) 100vw, 25vw"
+              className="object-cover"
+              preload
             />
           </div>
 
@@ -235,10 +240,10 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
             </div>
             <div className="flex flex-col">
               <span className="font-headline text-headline-sm text-on-surface leading-none font-bold">
-                {rating ? rating.toFixed(1) : "N/A"}
+                {userRating ? userRating.toFixed(1) : "N/A"}
               </span>
               <span className="font-label-sm text-label-sm text-on-surface-variant mt-1">
-                out of 5 from {formatCompact(currentGame?.ratingCount)} ratings
+                out of 5 from {formatCompact(ratingCount)} ratings
               </span>
             </div>
           </div>
@@ -342,7 +347,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
         gameTitle={title}
         gamePoster={currentGame?.coverImage ?? "/elder.jpg"}
         platforms={currentGame?.platforms ?? []}
-        rawgId={rawgId}
+        gameId={gameId}
       />
       <AddToListModal
         isOpen={isListModalOpen}

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export interface GameData {
@@ -29,7 +30,13 @@ export default function GameCard({ game, className = "" }: GameCardProps) {
     >
       <div className={`relative w-full aspect-[2/3] border border-surface-variant rounded overflow-hidden group-hover:border-primary transition-colors ${game.isPlaceholder ? 'bg-surface-container-high' : ''}`}>
         {game.img ? (
-          <img alt={game.title} className="w-full h-full object-cover" src={game.img} />
+          <Image
+            alt={game.title}
+            src={game.img}
+            fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 16vw"
+            className="object-cover"
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="font-display text-headline-sm text-on-surface-variant text-center px-2">{game.title}</span>

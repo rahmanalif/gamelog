@@ -1,5 +1,3 @@
-"use client";
-
 import type { AuthTokens, AuthUser } from "@/lib/auth-api";
 
 export const AUTH_STORAGE_KEY = "gamelog.auth";

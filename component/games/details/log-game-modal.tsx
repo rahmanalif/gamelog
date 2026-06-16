@@ -131,7 +131,7 @@ interface LogGameModalProps {
   gameTitle?: string;
   gamePoster?: string;
   platforms?: GameMetaItem[];
-  rawgId?: number;
+  gameId?: string | number;
 }
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -182,7 +182,7 @@ export default function LogGameModal({
   gameTitle = "Elden Ring",
   gamePoster = "/elder.jpg",
   platforms = [],
-  rawgId,
+  gameId,
 }: LogGameModalProps) {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
@@ -205,14 +205,14 @@ export default function LogGameModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rawgId) return;
+    if (!gameId) return;
 
     const selectedPlatform = platforms.find((item) => String(item.id) === platform);
     setIsSaving(true);
     setError("");
 
     try {
-      await logGame(rawgId, {
+      await logGame(gameId, {
         rating: rating || undefined,
         reviewText: review.trim() || undefined,
         playedAt: datePlayed,
@@ -377,7 +377,7 @@ export default function LogGameModal({
             </button>
             <button
               type="submit"
-              disabled={isSaving || !rawgId || !datePlayed}
+              disabled={isSaving || !gameId || !datePlayed}
               className="bg-primary text-on-primary-fixed px-8 py-3 rounded-lg font-bold tracking-[0.15em] hover:bg-primary-container transition-all shadow-lg active:scale-95 uppercase text-label-md flex items-center gap-2"
             >
               <span
