@@ -5,8 +5,10 @@ import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolk
 import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
 import type {
   AddGameInput,
+  CreateListReviewInput,
   CreateListInput,
   ListDetail,
+  ListReview,
   ListSortOrder,
   ListSummary,
   PaginatedLists,
@@ -58,6 +60,37 @@ function normalizePaginated<T>(raw: unknown): PaginatedLists {
   };
 }
 
+function normalizeListReviews(raw: unknown): ListReview[] {
+  const data = unwrapEnvelope<unknown>(raw);
+  const items = Array.isArray(data)
+    ? data
+    : typeof data === "object" && data !== null
+      ? ((data as Record<string, unknown>).items ?? (data as Record<string, unknown>).data)
+      : [];
+
+  if (!Array.isArray(items)) return [];
+
+  return items.map((item) => {
+    const record = item as Record<string, unknown>;
+    const user = (record.user ?? {}) as Record<string, unknown>;
+    const profile = (user.profile ?? {}) as Record<string, unknown>;
+
+    return {
+      id: String(record.id ?? ""),
+      listId: typeof record.listId === "string" ? record.listId : undefined,
+      content: String(record.content ?? record.reviewText ?? record.comment ?? record.body ?? ""),
+      createdAt: (record.createdAt ?? null) as string | undefined,
+      updatedAt: (record.updatedAt ?? null) as string | undefined,
+      user: {
+        id: typeof user.id === "string" ? user.id : undefined,
+        username: String(profile.username ?? user.username ?? profile.name ?? user.name ?? "Player"),
+        name: (profile.name ?? user.name ?? null) as string | null,
+        avatarUrl: (profile.avatarUrl ?? user.avatarUrl ?? profile.avatar ?? user.avatar ?? null) as string | null,
+      },
+    };
+  });
+}
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
   prepareHeaders: (headers) => {
@@ -87,7 +120,7 @@ const baseQueryWithRefresh: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQu
 export const listsApi = createApi({
   reducerPath: "listsApi",
   baseQuery: baseQueryWithRefresh,
-  tagTypes: ["List", "Lists", "MyLists"],
+  tagTypes: ["List", "Lists", "MyLists", "ListReviews"],
   endpoints: (builder) => ({
     getLists: builder.query<PaginatedLists, { sort?: ListSortOrder; page?: number; limit?: number } | void>({
       query: (params) => ({ url: "/lists", params: params ?? undefined }),
@@ -154,6 +187,24 @@ export const listsApi = createApi({
         { type: "MyLists", id: "CURRENT" },
       ],
     }),
+    getListReviews: builder.query<ListReview[], string>({
+      query: (id) => `/lists/${id}/comments`,
+      transformResponse: (raw: unknown) => normalizeListReviews(raw),
+      providesTags: (_result, _error, id) => [{ type: "ListReviews", id }],
+    }),
+    createListReview: builder.mutation<ListReview, { listId: string; input: CreateListReviewInput }>({
+      query: ({ listId, input }) => ({
+        url: `/lists/${listId}/comments`,
+        method: "POST",
+        body: input,
+      }),
+      transformResponse: (raw: unknown) => normalizeListReviews([unwrapEnvelope<unknown>(raw)])[0],
+      invalidatesTags: (_result, _error, { listId }) => [
+        { type: "ListReviews", id: listId },
+        { type: "List", id: listId },
+        { type: "Lists", id: "PUBLIC" },
+      ],
+    }),
     likeList: builder.mutation<{ isLiked: boolean; likeCount: number }, string>({
       query: (id) => ({ url: `/lists/${id}/like`, method: "POST" }),
       transformResponse: (raw: unknown) => unwrapEnvelope<{ isLiked: boolean; likeCount: number }>(raw),
@@ -176,8 +227,10 @@ export const listsApi = createApi({
 export const {
   useAddGameToListMutation,
   useCreateListMutation,
+  useCreateListReviewMutation,
   useDeleteListMutation,
   useGetListQuery,
+  useGetListReviewsQuery,
   useGetListsQuery,
   useGetMyListsQuery,
   useLikeListMutation,

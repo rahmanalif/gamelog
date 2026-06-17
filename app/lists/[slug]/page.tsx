@@ -6,6 +6,7 @@ import Footer from "@/component/footer";
 import ListHero from "@/component/lists/details/list-hero";
 import ListActions from "@/component/lists/details/list-actions";
 import ListGrid from "@/component/lists/details/list-grid";
+import ListReviews from "@/component/lists/details/list-reviews";
 import { useGetListQuery } from "@/store/lists-api.slice";
 
 function getQueryErrorMessage(error: unknown): string {
@@ -83,6 +84,7 @@ export default function ListDetailsPage() {
                   refreshing={isFetching}
                   onRefresh={refetch}
                 />
+                <ListReviews listId={list.id} initialCount={list.commentCount} />
               </div>
               <div className="md:col-span-4 mt-0 md:mt-20">
                 <ListActions

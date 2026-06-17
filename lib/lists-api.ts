@@ -40,6 +40,24 @@ export type ListDetail = Omit<ListSummary, "items"> & {
   items: ListItem[];
 };
 
+export type ListReview = {
+  id: string;
+  listId?: string;
+  content: string;
+  createdAt?: string;
+  updatedAt?: string;
+  user: {
+    id?: string;
+    username: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  };
+};
+
+export type CreateListReviewInput = {
+  content: string;
+};
+
 export type CreateListInput = {
   title: string;
   description?: string;
