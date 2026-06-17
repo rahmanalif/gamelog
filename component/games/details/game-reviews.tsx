@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import GameCard, { GameData } from "@/component/game-card";
-import { GameReview, getGameReviews } from "@/lib/game-api";
+import { GameReview, getGameReviews, likeReview, unlikeReview } from "@/lib/game-api";
 import { formatCount, listCoverImages, ListSummary } from "@/lib/lists-api";
+import { useAuthStore } from "@/store/auth.store";
 
 type Tab = "REVIEWS" | "LISTS" | "SIMILAR";
 
@@ -93,6 +94,8 @@ export default function GameReviews({
   const [similarPage, setSimilarPage] = useState(1);
   const [reviews, setReviews] = useState<GameReview[]>(initialReviews);
   const [reviewsError, setReviewsError] = useState("");
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
 
   const listsPerPage = 4;
   const similarPerPage = 12;
@@ -123,7 +126,39 @@ export default function GameReviews({
     return () => {
       isMounted = false;
     };
-  }, [gameId]);
+  }, [gameId, isLoggedIn]);
+
+  const toggleReviewLike = async (review: GameReview) => {
+    if (!isLoggedIn) {
+      openAuthModal("login");
+      return;
+    }
+
+    const previousReviews = reviews;
+    const nextLiked = !review.isLiked;
+    const nextCount = Math.max(0, (review.likesCount ?? 0) + (nextLiked ? 1 : -1));
+
+    setReviews((current) =>
+      current.map((item) =>
+        item.id === review.id ? { ...item, isLiked: nextLiked, likesCount: nextCount } : item,
+      ),
+    );
+    setReviewsError("");
+
+    try {
+      const response = nextLiked ? await likeReview(review.id) : await unlikeReview(review.id);
+      setReviews((current) =>
+        current.map((item) =>
+          item.id === review.id
+            ? { ...item, isLiked: response.isLiked, likesCount: response.likeCount }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setReviews(previousReviews);
+      setReviewsError(err instanceof Error ? err.message : "Unable to update review like");
+    }
+  };
 
   return (
     <div className="mt-stack-lg border-t border-surface-variant pt-stack-sm min-h-[500px]">
@@ -138,14 +173,14 @@ export default function GameReviews({
                 : "text-on-surface-variant hover:text-white border-transparent"
             }`}
           >
-            {tab === "SIMILAR" ? "SIMILAR GAMES" : tab === "REVIEWS" ? "POPULAR REVIEWS" : "LISTS"}
+            {tab === "SIMILAR" ? "SIMILAR GAMES" : tab === "REVIEWS" ? "REVIEWS" : "LISTS"}
           </button>
         ))}
       </div>
 
       <div className="mt-8">
         {activeTab === "REVIEWS" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-2">
+          <div className="grid grid-cols-1 gap-8 animate-in fade-in slide-in-from-bottom-2">
             {reviewItems.map((review) => (
               <div
                 key={review.id}
@@ -165,27 +200,46 @@ export default function GameReviews({
                         {review.user.username}
                       </div>
                       <div className="flex items-center gap-4 mt-1">
-                        <div className="flex items-center text-primary-container gap-0.5">
-                          {Array.from({ length: 5 }, (_, index) => (
-                            <span
-                              key={index}
-                              className="material-symbols-outlined"
-                              style={{
-                                fontVariationSettings:
-                                  index < (review.rating ?? 0) ? "'FILL' 1" : "'FILL' 0",
-                                fontSize: "14px",
-                              }}
-                            >
-                              star
-                            </span>
-                          ))}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center text-primary-container gap-0.5">
+                            {Array.from({ length: 5 }, (_, index) => (
+                              <span
+                                key={index}
+                                className="material-symbols-outlined"
+                                style={{
+                                  fontVariationSettings:
+                                    index < (review.rating ?? 0) ? "'FILL' 1" : "'FILL' 0",
+                                  fontSize: "14px",
+                                }}
+                              >
+                                star
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-on-surface-variant font-bold text-xs">
+                            {review.rating}/5
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm">
-                          <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleReviewLike(review)}
+                          className={`flex items-center gap-1 font-label-sm text-label-sm transition-colors ${
+                            review.isLiked
+                              ? "text-primary"
+                              : "text-on-surface-variant hover:text-primary"
+                          }`}
+                        >
+                          <span
+                            className="material-symbols-outlined"
+                            style={{
+                              fontSize: "14px",
+                              fontVariationSettings: review.isLiked ? "'FILL' 1" : "'FILL' 0",
+                            }}
+                          >
                             favorite
                           </span>
                           {formatCompact(review.likesCount)}
-                        </div>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -193,7 +247,7 @@ export default function GameReviews({
                     {formatReviewDate(review.playedAt ?? review.createdAt)}
                   </span>
                 </div>
-                <p className="font-body text-body-md text-on-surface-variant line-clamp-4 leading-relaxed italic">
+                <p className="font-body text-body-md text-on-surface-variant leading-relaxed italic">
                   &quot;{review.reviewText}&quot;
                 </p>
               </div>

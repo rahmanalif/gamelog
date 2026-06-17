@@ -38,16 +38,21 @@ export default function ReviewCard({ review, showPoster = true }: ReviewCardProp
             <h3 className="font-display text-headline-sm text-on-surface leading-none group-hover:text-primary transition-colors truncate">
               {review.game}
             </h3>
-            <div className="flex items-center text-primary gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <span 
-                  key={i} 
-                  className="material-symbols-outlined text-[16px]" 
-                  style={{ fontVariationSettings: i < review.rating ? "'FILL' 1" : "'FILL' 0" }}
-                >
-                  star
-                </span>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center text-primary gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <span 
+                    key={i} 
+                    className="material-symbols-outlined text-[16px]" 
+                    style={{ fontVariationSettings: i < review.rating ? "'FILL' 1" : "'FILL' 0" }}
+                  >
+                    star
+                  </span>
+                ))}
+              </div>
+              <span className="text-on-surface-variant font-bold text-sm">
+                {review.rating}/5
+              </span>
             </div>
           </div>
 
@@ -82,7 +87,7 @@ export default function ReviewCard({ review, showPoster = true }: ReviewCardProp
           </div>
         </div>
 
-        <p className="font-body text-body-md text-on-surface-variant mt-2 line-clamp-3 leading-relaxed italic border-l-2 border-primary/20 pl-4">
+        <p className="font-body text-body-md text-on-surface-variant mt-2 leading-relaxed italic border-l-2 border-primary/20 pl-4">
           "{review.content}"
         </p>
       </div>

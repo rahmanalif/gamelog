@@ -43,6 +43,60 @@ function descriptionToParagraphs(description?: string | null) {
     .slice(0, 2);
 }
 
+function RatingStars({ value, size = "text-2xl" }: { value: number; size?: string }) {
+  const rounded = Math.round(value * 2) / 2;
+
+  return (
+    <div className={`flex items-center text-primary-container ${size}`}>
+      {[...Array(5)].map((_, i) => {
+        const star = i + 1;
+        const isFull = rounded >= star;
+        const isHalf = !isFull && rounded >= star - 0.5;
+
+        return (
+          <span
+            key={i}
+            className="material-symbols-outlined"
+            style={{ fontVariationSettings: isFull || isHalf ? "'FILL' 1" : "'FILL' 0" }}
+          >
+            {isHalf ? "star_half" : "star"}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function UserRatingPanel({ rating, onEdit }: { rating?: number; onEdit: () => void }) {
+  if (!rating) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="flex w-full items-center justify-center gap-3 rounded border border-primary/45 bg-primary/10 px-4 py-3 text-left transition-colors hover:border-primary hover:bg-primary/15 sm:w-auto sm:justify-start sm:px-5"
+    >
+      <span
+        className="material-symbols-outlined text-primary text-[22px] shrink-0"
+        style={{ fontVariationSettings: "'FILL' 1" }}
+      >
+        verified
+      </span>
+      <div className="min-w-0">
+        <p className="font-label-sm text-[10px] leading-none font-black uppercase tracking-widest text-primary">
+          Your rating
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <RatingStars value={rating} size="text-xl" />
+          <span className="font-label-md text-label-md font-black text-on-surface tabular-nums">
+            {rating.toFixed(1)}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameHeroProps) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const openAuthModal = useAuthStore((s) => s.openAuthModal);
@@ -84,7 +138,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
   );
   const ratingCount = currentGame?.ratingCount ?? 0;
   const userRating = ratingCount > 0 ? currentGame?.averageRating ?? 0 : 0;
-  const roundedRating = Math.round(userRating * 2) / 2;
+  const myRating = currentGame?.currentUser?.rating;
   const platforms = currentGame?.platforms?.length
     ? currentGame.platforms.map((platform) => platform.name)
     : ["PlayStation 5", "PlayStation 4", "Xbox Series X/S", "PC (Steam)"];
@@ -221,31 +275,22 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
             </div>
           </div>
 
-          <div className="flex items-center gap-4 py-4 border-y border-surface-variant/50">
-            <div className="flex items-center text-primary-container text-2xl">
-              {[...Array(5)].map((_, i) => {
-                const star = i + 1;
-                const isFull = roundedRating >= star;
-                const isHalf = !isFull && roundedRating >= star - 0.5;
-                return (
-                  <span
-                    key={i}
-                    className="material-symbols-outlined"
-                    style={{ fontVariationSettings: isFull || isHalf ? "'FILL' 1" : "'FILL' 0" }}
-                  >
-                    {isHalf ? "star_half" : "star"}
-                  </span>
-                );
-              })}
+          <div className="flex flex-col gap-3 py-4 border-y border-surface-variant/50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4 min-w-0">
+              <RatingStars value={userRating} />
+              <div className="flex flex-col">
+                <span className="font-headline text-headline-sm text-on-surface leading-none font-bold">
+                  {userRating ? userRating.toFixed(1) : "N/A"}
+                </span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant mt-1">
+                  out of 5 from {formatCompact(ratingCount)} ratings
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="font-headline text-headline-sm text-on-surface leading-none font-bold">
-                {userRating ? userRating.toFixed(1) : "N/A"}
-              </span>
-              <span className="font-label-sm text-label-sm text-on-surface-variant mt-1">
-                out of 5 from {formatCompact(ratingCount)} ratings
-              </span>
-            </div>
+            <UserRatingPanel
+              rating={myRating}
+              onEdit={() => requireAuth(() => setIsLogModalOpen(true))}
+            />
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-2">

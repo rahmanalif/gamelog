@@ -51,6 +51,7 @@ export type GameReview = {
   finished?: boolean;
   containsSpoilers?: boolean;
   likesCount?: number;
+  isLiked?: boolean;
   commentsCount?: number;
   createdAt?: string;
   user: {
@@ -270,6 +271,7 @@ function normalizeGameReview(review: unknown): GameReview {
     finished: Boolean(record.finished),
     containsSpoilers: Boolean(record.containsSpoilers),
     likesCount: toNumber(record.likesCount ?? record.likeCount),
+    isLiked: Boolean(record.isLiked),
     commentsCount: toNumber(record.commentsCount ?? record.commentCount),
     createdAt: (record.createdAt ?? null) as string | undefined,
     user: {
@@ -431,6 +433,20 @@ export function likeGame(gameId: string | number) {
 export function unlikeGame(gameId: string | number) {
   return gameRequest<{ message: string; isLiked: boolean; likeCount: number }>(
     `/games/${gameId}/like`,
+    { method: "DELETE" },
+  );
+}
+
+export function likeReview(reviewId: string) {
+  return gameRequest<{ message: string; isLiked: boolean; likeCount: number }>(
+    `/games/reviews/${reviewId}/like`,
+    { method: "POST" },
+  );
+}
+
+export function unlikeReview(reviewId: string) {
+  return gameRequest<{ message: string; isLiked: boolean; likeCount: number }>(
+    `/games/reviews/${reviewId}/like`,
     { method: "DELETE" },
   );
 }

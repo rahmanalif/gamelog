@@ -83,7 +83,7 @@ export default function PopularReviews() {
   return (
     <section className="flex flex-col gap-stack-sm">
       <div className="border-b border-surface-variant pb-2">
-        <h2 className="font-display text-headline-sm text-on-surface">Popular Reviews This Week</h2>
+        <h2 className="font-display text-headline-sm text-on-surface">Reviews</h2>
       </div>
       <div className="flex flex-col gap-0 border border-surface-variant rounded bg-surface-container-low overflow-hidden shadow-lg">
         {currentReviews.map((review, index) => (
