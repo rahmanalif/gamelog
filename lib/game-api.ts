@@ -404,6 +404,35 @@ export async function getGame(slug: string) {
   return normalizeGameDetail(data);
 }
 
+export type RecentReview = GameReview & {
+  game: {
+    id: string;
+    title: string;
+    slug: string;
+    coverUrl?: string | null;
+    releaseDate?: string | null;
+  };
+};
+
+export async function getRecentReviews(limit = 6, page = 1): Promise<RecentReview[]> {
+  const data = await gameRequest<unknown>('/games/reviews/recent', {}, { limit, page });
+  const items = Array.isArray(data) ? data : [];
+  return items.map((item) => {
+    const record = item as Record<string, unknown>;
+    const gameRecord = (record.game ?? {}) as Record<string, unknown>;
+    return {
+      ...normalizeGameReview(item),
+      game: {
+        id: String(gameRecord.id ?? ''),
+        title: String(gameRecord.title ?? ''),
+        slug: String(gameRecord.slug ?? ''),
+        coverUrl: (gameRecord.coverUrl ?? null) as string | null,
+        releaseDate: (gameRecord.releaseDate ?? null) as string | null,
+      },
+    };
+  });
+}
+
 export async function getGameReviews(
   gameId: string | number,
   params: { page?: number; limit?: number; sort?: string } = {},
