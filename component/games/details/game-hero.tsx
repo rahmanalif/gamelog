@@ -280,7 +280,7 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
               <RatingStars value={userRating} />
               <div className="flex flex-col">
                 <span className="font-headline text-headline-sm text-on-surface leading-none font-bold">
-                  {userRating ? userRating.toFixed(1) : "N/A"}
+                  {ratingCount > 0 ? userRating.toFixed(1) : "N/A"}
                 </span>
                 <span className="font-label-sm text-label-sm text-on-surface-variant mt-1">
                   out of 5 from {formatCompact(ratingCount)} ratings

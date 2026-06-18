@@ -151,7 +151,7 @@ export default function Navbar() {
                               style={{
                                 fontSize: '11px',
                                 fontVariationSettings:
-                                  s <= Math.floor(game.averageRating ?? game.rawgRating ?? 0) ? "'FILL' 1" : "'FILL' 0",
+                                  s <= Math.floor(game.ratingCount ? (game.averageRating ?? 0) : 0) ? "'FILL' 1" : "'FILL' 0",
                               }}
                             >
                               star

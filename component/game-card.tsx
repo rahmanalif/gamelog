@@ -56,14 +56,28 @@ export default function GameCard({ game, className = "" }: GameCardProps) {
               Anticipated
             </div>
           ) : (
-            <div className="flex items-center text-primary gap-0 shrink-0">
-              {[...Array(5)].map((_, i) => {
-                const fill = i + 0.5 < (game.rating || 0) ? 1 : 0;
-                const icon = i + 0.5 === (game.rating || 0) ? 'star_half' : 'star';
-                return (
-                  <span key={i} className="material-symbols-outlined" style={{ fontVariationSettings: `'FILL' ${fill}`, fontSize: '13px' }}>{icon}</span>
-                );
-              })}
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center text-primary gap-0">
+                {[...Array(5)].map((_, i) => {
+                  const rating = game.rating || 0;
+                  const filled = rating >= i + 1;
+                  const half = !filled && rating > i && rating < i + 1;
+                  return (
+                    <span
+                      key={i}
+                      className={`material-symbols-outlined ${rating === 0 ? 'opacity-30' : ''}`}
+                      style={{ fontVariationSettings: `'FILL' ${filled || half ? 1 : 0}`, fontSize: '13px' }}
+                    >
+                      {half ? 'star_half' : 'star'}
+                    </span>
+                  );
+                })}
+              </div>
+              {(game.rating ?? 0) > 0 && (
+                <span className="text-on-surface-variant font-label-sm text-[10px]">
+                  {game.rating!.toFixed(1)}
+                </span>
+              )}
             </div>
           )}
           

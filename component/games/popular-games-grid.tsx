@@ -36,11 +36,12 @@ function formatCompact(value?: number) {
 }
 
 function toGameData(game: GameSummary): GameData {
+  const hasUserRatings = (game.ratingCount ?? 0) > 0;
   return {
     id: game.id ?? game.rawgId,
     title: game.title,
     slug: game.slug,
-    rating: game.averageRating ?? game.rawgRating ?? 0,
+    rating: hasUserRatings ? (game.averageRating ?? 0) : 0,
     views: formatCompact(game.views),
     likes: formatCompact(game.likes),
     img: game.coverImage ?? undefined,

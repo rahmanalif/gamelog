@@ -15,7 +15,7 @@ function mapGameCard(game: GameSummary): GameData {
     title: game.title,
     slug: game.slug,
     img: game.coverImage ?? undefined,
-    rating: game.averageRating ?? game.rawgRating ?? undefined,
+    rating: (game.ratingCount ?? 0) > 0 ? (game.averageRating ?? undefined) : undefined,
     views: game.views ? String(game.views) : undefined,
     likes: game.likes ? String(game.likes) : undefined,
   };
