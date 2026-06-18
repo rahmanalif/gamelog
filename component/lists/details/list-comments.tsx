@@ -172,7 +172,6 @@ export default function ListComments({ listId, initialCount = 0 }: ListCommentsP
                     )}
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-primary text-[20px]">chat_bubble</span>
               </div>
               <p className="font-body text-body-md text-on-surface-variant leading-relaxed mt-4 whitespace-pre-line">
                 {comment.content}

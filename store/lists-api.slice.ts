@@ -93,6 +93,35 @@ function normalizeListReviews(raw: unknown): ListReview[] {
   });
 }
 
+function applyCommentLike(
+  comments: ListReview[],
+  commentId: string,
+  isLiked: boolean,
+  likeCount?: number,
+) {
+  const updateComment = (comment: ListReview): ListReview => {
+    if (comment.id === commentId) {
+      const fallbackCount = Math.max(0, (comment.likeCount ?? 0) + (isLiked ? 1 : -1));
+      return {
+        ...comment,
+        isLiked,
+        likeCount: likeCount ?? fallbackCount,
+      };
+    }
+
+    if ("replies" in comment && Array.isArray((comment as ListReview & { replies?: ListReview[] }).replies)) {
+      return {
+        ...comment,
+        replies: (comment as ListReview & { replies: ListReview[] }).replies.map(updateComment),
+      } as ListReview;
+    }
+
+    return comment;
+  };
+
+  return comments.map(updateComment);
+}
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
   prepareHeaders: (headers) => {
@@ -224,13 +253,49 @@ export const listsApi = createApi({
       ],
     }),
     likeListComment: builder.mutation<{ isLiked: boolean; likeCount: number }, { listId: string; commentId: string }>({
-      query: ({ commentId }) => ({ url: `/lists/comments/${commentId}/like`, method: "POST" }),
+      query: ({ listId, commentId }) => ({ url: `/lists/${listId}/comments/${commentId}/like`, method: "POST" }),
       transformResponse: (raw: unknown) => unwrapEnvelope<{ isLiked: boolean; likeCount: number }>(raw),
+      async onQueryStarted({ listId, commentId }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(
+          listsApi.util.updateQueryData("getListReviews", listId, (draft) =>
+            applyCommentLike(draft, commentId, true),
+          ),
+        );
+
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            listsApi.util.updateQueryData("getListReviews", listId, (draft) =>
+              applyCommentLike(draft, commentId, data.isLiked, data.likeCount),
+            ),
+          );
+        } catch {
+          patch.undo();
+        }
+      },
       invalidatesTags: (_result, _error, { listId }) => [{ type: "ListReviews", id: listId }],
     }),
     unlikeListComment: builder.mutation<{ isLiked: boolean; likeCount: number }, { listId: string; commentId: string }>({
-      query: ({ commentId }) => ({ url: `/lists/comments/${commentId}/like`, method: "DELETE" }),
+      query: ({ listId, commentId }) => ({ url: `/lists/${listId}/comments/${commentId}/like`, method: "DELETE" }),
       transformResponse: (raw: unknown) => unwrapEnvelope<{ isLiked: boolean; likeCount: number }>(raw),
+      async onQueryStarted({ listId, commentId }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(
+          listsApi.util.updateQueryData("getListReviews", listId, (draft) =>
+            applyCommentLike(draft, commentId, false),
+          ),
+        );
+
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            listsApi.util.updateQueryData("getListReviews", listId, (draft) =>
+              applyCommentLike(draft, commentId, data.isLiked, data.likeCount),
+            ),
+          );
+        } catch {
+          patch.undo();
+        }
+      },
       invalidatesTags: (_result, _error, { listId }) => [{ type: "ListReviews", id: listId }],
     }),
   }),

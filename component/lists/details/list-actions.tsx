@@ -11,37 +11,54 @@ interface ListActionsProps {
   ownerId: string;
   likeCount: number;
   itemCount: number;
+  initialIsLiked?: boolean;
 }
 
-export default function ListActions({ listId, ownerId, likeCount: initialLikeCount, itemCount }: ListActionsProps) {
+export default function ListActions({
+  listId,
+  ownerId,
+  likeCount: initialLikeCount,
+  itemCount,
+  initialIsLiked = false,
+}: ListActionsProps) {
   const user = useAuthStore((s) => s.user);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
   const [likeList] = useLikeListMutation();
   const [unlikeList] = useUnlikeListMutation();
   const [deleteList] = useDeleteListMutation();
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [likeLoading, setLikeLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const isOwner = isLoggedIn && Boolean(user?.id) && user?.id === ownerId;
 
   const handleLike = async () => {
-    if (!isLoggedIn || likeLoading) return;
+    if (!isLoggedIn) {
+      openAuthModal("login");
+      return;
+    }
+    if (likeLoading) return;
+
+    const previousLiked = isLiked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+
+    setActionError(null);
     setLikeLoading(true);
+    setIsLiked(nextLiked);
+    setLikeCount(Math.max(0, previousCount + (nextLiked ? 1 : -1)));
+
     try {
-      if (isLiked) {
-        const r = await unlikeList(listId).unwrap();
-        setIsLiked(false);
-        setLikeCount(r.likeCount);
-      } else {
-        const r = await likeList(listId).unwrap();
-        setIsLiked(true);
-        setLikeCount(r.likeCount);
-      }
-    } catch {
-      // revert on error
+      const response = previousLiked ? await unlikeList(listId).unwrap() : await likeList(listId).unwrap();
+      setIsLiked(response.isLiked);
+      setLikeCount(response.likeCount);
+    } catch (err) {
+      setIsLiked(previousLiked);
+      setLikeCount(previousCount);
+      setActionError(err instanceof Error ? err.message : "Failed to update like.");
     } finally {
       setLikeLoading(false);
     }
@@ -50,88 +67,108 @@ export default function ListActions({ listId, ownerId, likeCount: initialLikeCou
   const handleDelete = async () => {
     if (!confirm("Delete this list? This cannot be undone.")) return;
     setDeleteLoading(true);
-    setDeleteError(null);
+    setActionError(null);
     try {
       await deleteList(listId).unwrap();
       window.location.href = "/lists";
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete.");
+      setActionError(err instanceof Error ? err.message : "Failed to delete.");
       setDeleteLoading(false);
     }
   };
 
+  const handleShare = () => {
+    navigator.clipboard?.writeText(window.location.href).catch(() => {});
+  };
+
   return (
-    <div className="md:col-span-4 mt-stack-md md:mt-0">
-      <div className="bg-surface-container/90 backdrop-blur-md border border-outline-variant/60 rounded-lg overflow-hidden sticky top-24 shadow-xl">
-        {/* Owner actions */}
+    <div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {isOwner && (
-          <div className="flex border-b border-outline-variant/60">
+          <>
             <Link
               href={`/lists/edit?id=${listId}`}
-              className="flex-1 py-3 px-4 flex items-center justify-center gap-2 text-on-surface hover:bg-surface-container-high hover:text-primary transition-colors group"
+              className="bg-primary-container hover:bg-primary text-on-primary-container h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors group"
             >
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-primary">edit</span>
-              <span className="font-label-md text-label-md font-bold">Edit</span>
+              <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">
+                edit_square
+              </span>
+              <span className="font-label-sm text-label-sm font-bold tracking-widest">EDIT</span>
             </Link>
-            <div className="w-px bg-outline-variant/60" />
+
             <button
+              type="button"
               onClick={handleDelete}
               disabled={deleteLoading}
-              className="flex-1 py-3 px-4 flex items-center justify-center gap-2 text-on-surface hover:bg-error/10 hover:text-error transition-colors group disabled:opacity-50"
+              className="bg-surface-variant hover:bg-error/10 text-on-surface hover:text-error h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors group border border-transparent hover:border-error/40 disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-error">delete</span>
-              <span className="font-label-md text-label-md font-bold">
-                {deleteLoading ? "Deleting…" : "Delete"}
+              <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">
+                delete
+              </span>
+              <span className="font-label-sm text-label-sm font-bold tracking-widest">
+                {deleteLoading ? "DELETING" : "DELETE"}
               </span>
             </button>
-          </div>
+          </>
         )}
 
-        {deleteError && (
-          <p className="px-4 py-2 text-error text-label-sm bg-error/10 border-b border-outline-variant/60">{deleteError}</p>
-        )}
-
-        {/* Actions */}
-        <div className="flex flex-col">
-          <button
-            onClick={handleLike}
-            disabled={likeLoading}
-            className={`w-full py-3 px-4 flex items-center justify-center gap-2 text-on-surface hover:bg-surface-container-high transition-colors border-b border-outline-variant/60 group disabled:opacity-60 ${
-              isLiked ? "text-primary" : ""
-            }`}
+        <button
+          type="button"
+          onClick={handleLike}
+          disabled={likeLoading}
+          className={`h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-all group border disabled:opacity-60 ${
+            isLiked
+              ? "bg-error/20 border-error/40 text-error"
+              : "bg-surface-variant hover:bg-surface-container-high text-on-surface border-transparent hover:border-surface-variant"
+          }`}
+        >
+          <span
+            className="material-symbols-outlined text-xl"
+            style={{ fontVariationSettings: isLiked ? "'FILL' 1" : "'FILL' 0" }}
           >
-            <span
-              className={`material-symbols-outlined text-[20px] transition-colors ${
-                isLiked ? "text-primary" : "text-on-surface-variant group-hover:text-primary"
-              }`}
-              style={isLiked ? { fontVariationSettings: "'FILL' 1" } : undefined}
-            >
-              favorite
-            </span>
-            <span className="font-label-md text-label-md font-bold">
-              {isLiked ? "Liked" : "Like this list?"}{" "}
-              <span className="text-on-surface-variant font-normal">{formatCount(likeCount)}</span>
-            </span>
-          </button>
-          <button className="w-full py-3 px-4 flex items-center justify-center gap-2 text-on-surface hover:bg-surface-container-high transition-colors border-b border-outline-variant/60 group">
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-on-surface">content_copy</span>
-            <span className="font-label-md text-label-md font-bold">Clone this list</span>
-          </button>
-          <button className="w-full py-3 px-4 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors font-label-md text-label-md uppercase tracking-wider font-bold">
-            Share
-          </button>
-        </div>
+            favorite
+          </span>
+          <span className="font-label-sm text-label-sm tracking-widest font-bold">
+            LIKE {formatCount(likeCount)}
+          </span>
+        </button>
 
-        {/* Progress */}
-        <div className="p-4 bg-surface-container-low/80 border-t border-outline-variant/60">
-          <div className="flex justify-between items-end mb-2">
-            <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">Total games</span>
-              <span className="font-body text-body-md text-on-surface">{itemCount}</span>
-            </div>
-          </div>
+        <button
+          type="button"
+          className="bg-surface-variant hover:bg-surface-container-high text-on-surface h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors group border border-transparent hover:border-surface-variant"
+        >
+          <span className="material-symbols-outlined text-xl group-hover:text-primary-container transition-colors">
+            content_copy
+          </span>
+          <span className="font-label-sm text-label-sm tracking-widest font-bold">CLONE</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleShare}
+          className="bg-surface-variant hover:bg-surface-container-high text-on-surface h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors group border border-transparent hover:border-surface-variant"
+        >
+          <span className="material-symbols-outlined text-xl group-hover:text-primary-container transition-colors">
+            ios_share
+          </span>
+          <span className="font-label-sm text-label-sm tracking-widest font-bold">SHARE</span>
+        </button>
+
+        <div className="bg-surface-container-low border border-surface-variant h-14 rounded-lg flex flex-col items-center justify-center gap-1">
+          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest font-bold">
+            GAMES
+          </span>
+          <span className="font-label-md text-label-md text-on-surface font-black tabular-nums">
+            {formatCount(itemCount)}
+          </span>
         </div>
       </div>
+
+      {actionError && (
+        <p className="mt-3 rounded border border-error/30 bg-error/10 px-3 py-2 text-error text-label-sm font-bold">
+          {actionError}
+        </p>
+      )}
     </div>
   );
 }

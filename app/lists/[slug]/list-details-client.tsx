@@ -78,20 +78,22 @@ export default function ListDetailsClient({ slug }: ListDetailsClientProps) {
           <>
             <ListHero list={list} />
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-start">
-              <div className="md:col-span-8 flex flex-col">
-                <ListGrid
-                  items={list.items}
-                  updatedAt={list.updatedAt}
-                  refreshing={isFetching}
-                  onRefresh={refetch}
-                />
-              </div>
-              <div className="md:col-span-4 mt-0 md:mt-20">
+              <div className="md:col-span-12 lg:col-span-10">
                 <ListActions
                   listId={list.id}
                   ownerId={list.user.id}
                   likeCount={list.likeCount}
                   itemCount={list._count.items}
+                  initialIsLiked={list.currentUser?.isLiked}
+                />
+              </div>
+
+              <div className="md:col-span-12 lg:col-span-10 flex flex-col">
+                <ListGrid
+                  items={list.items}
+                  updatedAt={list.updatedAt}
+                  refreshing={isFetching}
+                  onRefresh={refetch}
                 />
               </div>
             </div>

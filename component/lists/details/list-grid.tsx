@@ -1,4 +1,4 @@
-import Link from "next/link";
+import GameCard, { GameData } from "@/component/game-card";
 import type { ListItem } from "@/lib/lists-api";
 
 interface ListGridProps {
@@ -18,6 +18,29 @@ function timeAgo(dateStr: string): string {
   if (months === 1) return "1 month ago";
   if (months < 12) return `${months} months ago`;
   return `${Math.floor(months / 12)} years ago`;
+}
+
+function toNumber(value: number | string | null | undefined): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function mapListItemToGameCard(item: ListItem): GameData {
+  const rating = toNumber(item.game.avgRating);
+
+  return {
+    id: item.game.id,
+    title: item.game.title,
+    slug: item.game.slug,
+    img: item.game.coverUrl ?? undefined,
+    rating,
+    views: String(item.game.logCount ?? 0),
+    likes: String(item.game.likeCount ?? 0),
+  };
 }
 
 export default function ListGrid({ items = [], updatedAt, refreshing = false, onRefresh }: ListGridProps) {
@@ -54,36 +77,13 @@ export default function ListGrid({ items = [], updatedAt, refreshing = false, on
           <p className="mt-2">No games in this list yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-4 relative z-20">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 relative z-20">
           {items.map((item, index) => (
-            <div key={item.id} className="flex flex-col items-center gap-2">
-              <Link
-                href={`/games/${item.game.slug}`}
-                className="relative aspect-[2/3] w-full block group overflow-hidden bg-surface-container border border-outline-variant/50 hover:border-primary transition-colors rounded-sm"
-              >
-                {item.game.coverUrl ? (
-                  <>
-                    <img
-                      alt={item.game.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      src={item.game.coverUrl}
-                    />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <span className="material-symbols-outlined text-primary-container text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>visibility</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-surface-variant flex items-center justify-center">
-                    <span className="material-symbols-outlined text-outline text-[32px]">image</span>
-                  </div>
-                )}
-                {item.note && (
-                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-white text-[10px] line-clamp-2">{item.note}</p>
-                  </div>
-                )}
-              </Link>
-              <span className="font-label-md text-label-md text-on-surface-variant">{index + 1}</span>
+            <div key={item.id} className="flex min-w-0 flex-col gap-1">
+              <GameCard game={mapListItemToGameCard(item)} />
+              <span className="text-center font-label-md text-label-md text-on-surface-variant">
+                {item.position || index + 1}
+              </span>
             </div>
           ))}
         </div>

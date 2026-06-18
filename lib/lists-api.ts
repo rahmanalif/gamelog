@@ -33,11 +33,24 @@ export type ListItem = {
   position: number;
   note: string | null;
   createdAt: string;
-  game: { id: string; title: string; slug: string; coverUrl: string | null; releaseDate: string | null };
+  game: {
+    id: string;
+    title: string;
+    slug: string;
+    coverUrl: string | null;
+    releaseDate: string | null;
+    avgRating?: number | string | null;
+    ratingCount?: number;
+    likeCount?: number;
+    logCount?: number;
+  };
 };
 
 export type ListDetail = Omit<ListSummary, "items"> & {
   items: ListItem[];
+  currentUser?: {
+    isLiked: boolean;
+  };
 };
 
 export type ListReview = {
@@ -48,6 +61,7 @@ export type ListReview = {
   updatedAt?: string;
   likeCount?: number;
   isLiked?: boolean;
+  replies?: ListReview[];
   user: {
     id?: string;
     username: string;
