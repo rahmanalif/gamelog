@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Suspense } from "react";
 import Navbar from "@/component/navbar";
 import Footer from "@/component/footer";
 import GameHero from "@/component/games/details/game-hero";
@@ -20,15 +21,34 @@ function mapGameCard(game: GameSummary): GameData {
   };
 }
 
-export default async function GameDetailsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const fallbackTitle = slug
+function fallbackTitleFromSlug(slug: string) {
+  return slug
     .split("-")
     .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-  const game = await getGame(slug).catch(() => null);
-  const gameId = game?.id ? String(game.id) : undefined;
-  const primaryGenre = game?.genres?.[0]?.slug;
+}
+
+function GameReviewsSkeleton() {
+  return (
+    <div className="mt-stack-lg border-t border-surface-variant pt-stack-sm min-h-[500px]">
+      <div className="flex gap-8 border-b border-surface-variant/50">
+        <div className="h-8 w-24 rounded bg-surface-container-high animate-pulse" />
+        <div className="h-8 w-16 rounded bg-surface-container-high animate-pulse" />
+        <div className="h-8 w-32 rounded bg-surface-container-high animate-pulse" />
+      </div>
+      <div className="mt-8 grid grid-cols-1 gap-8">
+        {Array.from({ length: 2 }, (_, index) => (
+          <div
+            key={index}
+            className="h-40 rounded-lg border border-surface-variant bg-surface-container-low animate-pulse"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function GameDetailsTabs({ gameId, primaryGenre }: { gameId?: string; primaryGenre?: string }) {
   const [reviews, lists, similarGames] = await Promise.all([
     gameId
       ? getGameReviews(gameId, { page: 1, limit: 10, sort: "popular" })
@@ -50,6 +70,23 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
       )
       .catch(() => []),
   ]);
+
+  return (
+    <GameReviews
+      gameId={gameId}
+      initialReviews={reviews}
+      initialLists={lists}
+      initialSimilarGames={similarGames}
+    />
+  );
+}
+
+export default async function GameDetailsPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const fallbackTitle = fallbackTitleFromSlug(slug);
+  const game = await getGame(slug).catch(() => null);
+  const gameId = game?.id ? String(game.id) : undefined;
+  const primaryGenre = game?.genres?.[0]?.slug;
 
   return (
     <div className="bg-background min-h-screen text-on-surface font-body selection:bg-primary selection:text-on-primary overflow-x-hidden relative">
@@ -81,12 +118,9 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
 
       <main className="w-full max-w-container-max mx-auto px-gutter mt-12 md:mt-55 pb-12 flex flex-col gap-12 relative z-20">
         <GameHero gameTitle={fallbackTitle} game={game} slug={slug} />
-        <GameReviews
-          gameId={gameId}
-          initialReviews={reviews}
-          initialLists={lists}
-          initialSimilarGames={similarGames}
-        />
+        <Suspense fallback={<GameReviewsSkeleton />}>
+          <GameDetailsTabs gameId={gameId} primaryGenre={primaryGenre} />
+        </Suspense>
       </main>
 
       <Footer />

@@ -46,6 +46,8 @@ export type ListReview = {
   content: string;
   createdAt?: string;
   updatedAt?: string;
+  likeCount?: number;
+  isLiked?: boolean;
   user: {
     id?: string;
     username: string;
@@ -237,6 +239,18 @@ export async function likeList(id: string): Promise<{ isLiked: boolean; likeCoun
 
 export async function unlikeList(id: string): Promise<{ isLiked: boolean; likeCount: number }> {
   return listResourceRequest<{ isLiked: boolean; likeCount: number }>(`/lists/${id}/like`, {
+    method: "DELETE",
+  });
+}
+
+export async function likeListComment(commentId: string): Promise<{ isLiked: boolean; likeCount: number }> {
+  return listResourceRequest<{ isLiked: boolean; likeCount: number }>(`/lists/comments/${commentId}/like`, {
+    method: "POST",
+  });
+}
+
+export async function unlikeListComment(commentId: string): Promise<{ isLiked: boolean; likeCount: number }> {
+  return listResourceRequest<{ isLiked: boolean; likeCount: number }>(`/lists/comments/${commentId}/like`, {
     method: "DELETE",
   });
 }

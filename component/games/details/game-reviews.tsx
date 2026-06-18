@@ -109,7 +109,7 @@ export default function GameReviews({
   const reviewItems = useMemo(() => reviews.filter((review) => review.reviewText), [reviews]);
 
   useEffect(() => {
-    if (!gameId) return;
+    if (!gameId || (!isLoggedIn && initialReviews.length > 0)) return;
     let isMounted = true;
 
     getGameReviews(gameId, { page: 1, limit: 10, sort: "popular" })

@@ -81,6 +81,8 @@ function normalizeListReviews(raw: unknown): ListReview[] {
       content: String(record.content ?? record.reviewText ?? record.comment ?? record.body ?? ""),
       createdAt: (record.createdAt ?? null) as string | undefined,
       updatedAt: (record.updatedAt ?? null) as string | undefined,
+      likeCount: Number(record.likeCount ?? record.likesCount ?? 0),
+      isLiked: Boolean(record.isLiked),
       user: {
         id: typeof user.id === "string" ? user.id : undefined,
         username: String(profile.username ?? user.username ?? profile.name ?? user.name ?? "Player"),
@@ -221,6 +223,16 @@ export const listsApi = createApi({
         { type: "Lists", id: "PUBLIC" },
       ],
     }),
+    likeListComment: builder.mutation<{ isLiked: boolean; likeCount: number }, { listId: string; commentId: string }>({
+      query: ({ commentId }) => ({ url: `/lists/comments/${commentId}/like`, method: "POST" }),
+      transformResponse: (raw: unknown) => unwrapEnvelope<{ isLiked: boolean; likeCount: number }>(raw),
+      invalidatesTags: (_result, _error, { listId }) => [{ type: "ListReviews", id: listId }],
+    }),
+    unlikeListComment: builder.mutation<{ isLiked: boolean; likeCount: number }, { listId: string; commentId: string }>({
+      query: ({ commentId }) => ({ url: `/lists/comments/${commentId}/like`, method: "DELETE" }),
+      transformResponse: (raw: unknown) => unwrapEnvelope<{ isLiked: boolean; likeCount: number }>(raw),
+      invalidatesTags: (_result, _error, { listId }) => [{ type: "ListReviews", id: listId }],
+    }),
   }),
 });
 
@@ -234,7 +246,9 @@ export const {
   useGetListsQuery,
   useGetMyListsQuery,
   useLikeListMutation,
+  useLikeListCommentMutation,
   useRemoveGameFromListMutation,
   useUnlikeListMutation,
+  useUnlikeListCommentMutation,
   useUpdateListMutation,
 } = listsApi;
