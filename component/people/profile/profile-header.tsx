@@ -3,28 +3,43 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth.store";
+import { followUser, unfollowUser } from "@/lib/people-api";
 
 interface ProfileHeaderProps {
   username: string;
   avatar: string;
+  isFollowing?: boolean | null;
+  followersCount?: number;
+  followingCount?: number;
+  gamesCount?: number;
+  reviewsCount?: number;
 }
 
-export default function ProfileHeader({ username, avatar }: ProfileHeaderProps) {
+export default function ProfileHeader({
+  username,
+  avatar,
+  isFollowing: initialIsFollowing,
+  followersCount = 0,
+  followingCount = 0,
+  gamesCount = 0,
+  reviewsCount = 0,
+}: ProfileHeaderProps) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const user = useAuthStore((s) => s.user);
   const openAuthModal = useAuthStore((s) => s.openAuthModal);
   const [avatarError, setAvatarError] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing ?? false);
+  const [followerCount, setFollowerCount] = useState(followersCount);
+  const [loading, setLoading] = useState(false);
 
   const isOwnProfile =
     isLoggedIn && user?.username.toLowerCase() === username.toLowerCase();
 
   const stats = [
-    { label: "Games", value: "440" },
-    { label: "This Year", value: "12" },
-    { label: "Lists", value: "3" },
-    { label: "Following", value: "1" },
-    { label: "Followers", value: isFollowing ? "1" : "0" },
+    { label: "Games", value: gamesCount.toLocaleString() },
+    { label: "Reviews", value: reviewsCount.toLocaleString() },
+    { label: "Following", value: followingCount.toLocaleString() },
+    { label: "Followers", value: followerCount.toLocaleString() },
   ];
 
   const initial = username.charAt(0).toUpperCase();
@@ -38,9 +53,22 @@ export default function ProfileHeader({ username, avatar }: ProfileHeaderProps) 
   const avatarBg = avatarColors[colorIndex];
   const showFallback = !avatar || avatarError;
 
-  const handleFollow = () => {
+  const handleFollow = async () => {
     if (!isLoggedIn) { openAuthModal("login"); return; }
-    setIsFollowing(!isFollowing);
+    if (loading) return;
+    setLoading(true);
+    const wasFollowing = isFollowing;
+    setIsFollowing(!wasFollowing);
+    setFollowerCount((c) => c + (wasFollowing ? -1 : 1));
+    try {
+      if (wasFollowing) await unfollowUser(username);
+      else await followUser(username);
+    } catch {
+      setIsFollowing(wasFollowing);
+      setFollowerCount((c) => c + (wasFollowing ? 1 : -1));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,7 +107,8 @@ export default function ProfileHeader({ username, avatar }: ProfileHeaderProps) 
             ) : (
               <button
                 onClick={handleFollow}
-                className={`hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded text-label-sm font-bold tracking-widest transition-all ${
+                disabled={loading}
+                className={`hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded text-label-sm font-bold tracking-widest transition-all disabled:opacity-60 ${
                   isFollowing
                     ? "border border-primary/40 text-primary hover:bg-error/10 hover:text-error hover:border-error/40"
                     : "border border-outline-variant text-on-surface-variant hover:text-white hover:bg-surface-container-high"
@@ -92,9 +121,6 @@ export default function ProfileHeader({ username, avatar }: ProfileHeaderProps) 
               </button>
             )}
           </div>
-          <p className="font-body text-body-md text-on-surface-variant max-w-md">
-            Playing everything, slowly. Obsessed with systemic design.
-          </p>
         </div>
       </div>
 

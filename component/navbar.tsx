@@ -2,9 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import { GameSummary, searchGames } from '@/lib/game-api';
+import {
+  getNotifications,
+  markNotificationsRead,
+  notifMessage,
+  timeAgo,
+  type NotificationEntry,
+} from '@/lib/notification-api';
 
 function getInitial(name?: string | null) {
   return (name?.trim().charAt(0) || 'A').toUpperCase();
@@ -22,22 +29,60 @@ export default function Navbar() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<GameSummary[]>([]);
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationEntry[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifLoaded, setNotifLoaded] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   const visibleSearchResults = searchQuery.trim().length > 1 ? searchResults : [];
   const username = user?.username ?? 'Account';
   const profileHref = `/people/${encodeURIComponent(username)}`;
   const showAvatarImage = Boolean(user?.avatar && failedAvatar !== user.avatar);
 
-  // Close search dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setIsSearchFocused(false);
       }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const r = await getNotifications({ limit: 1 });
+      setUnreadCount(r.unreadCount);
+    } catch {}
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
+
+  const openNotifications = async () => {
+    const next = !notifOpen;
+    setNotifOpen(next);
+    if (next && !notifLoaded) {
+      try {
+        const r = await getNotifications({ limit: 20 });
+        setNotifications(r.items);
+        setUnreadCount(r.unreadCount);
+        setNotifLoaded(true);
+      } catch {}
+    }
+    if (next && unreadCount > 0) {
+      markNotificationsRead()
+        .then(() => setUnreadCount(0))
+        .catch(() => {});
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -183,12 +228,76 @@ export default function Navbar() {
             ) : (
               <div className="flex items-center gap-3 pl-4 border-l border-surface-variant h-8">
                 {/* Notification Bell */}
-                <button className="relative text-on-surface-variant hover:text-white transition-colors hidden sm:block">
-                  <span className="material-symbols-outlined text-[22px]">notifications</span>
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full text-[9px] font-bold text-white flex items-center justify-center leading-none">
-                    3
-                  </span>
-                </button>
+                <div ref={notifRef} className="relative hidden sm:block">
+                  <button
+                    onClick={openNotifications}
+                    className="relative text-on-surface-variant hover:text-white transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[22px]">notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full text-[9px] font-bold text-white flex items-center justify-center leading-none">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notifOpen && (
+                    <div className="absolute right-0 top-full mt-3 w-80 bg-surface-container border border-surface-variant rounded-xl shadow-2xl z-50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-variant">
+                        <span className="text-label-md font-bold text-white uppercase tracking-widest">Notifications</span>
+                        {notifications.some((n) => !n.isRead) && (
+                          <button
+                            className="text-label-sm text-primary hover:text-white transition-colors uppercase tracking-widest font-bold"
+                            onClick={() => {
+                              markNotificationsRead().catch(() => {});
+                              setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+                              setUnreadCount(0);
+                            }}
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="py-10 flex flex-col items-center gap-3 text-on-surface-variant">
+                            <span className="material-symbols-outlined text-[40px] opacity-30">notifications_off</span>
+                            <p className="text-label-sm uppercase tracking-widest opacity-60">No notifications yet</p>
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              className={`flex items-start gap-3 px-4 py-3 border-b border-surface-variant/50 hover:bg-surface-container-high transition-colors ${!n.isRead ? 'bg-surface-container-high/40' : ''}`}
+                            >
+                              {n.actor?.avatarUrl ? (
+                                <img
+                                  src={n.actor.avatarUrl}
+                                  alt={n.actor.username ?? ''}
+                                  className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                                  <span className="text-label-sm font-bold text-primary uppercase">
+                                    {(n.actor?.name ?? n.actor?.username ?? '?').charAt(0)}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-body-sm text-on-surface leading-snug">{notifMessage(n)}</p>
+                                <p className="text-label-sm text-on-surface-variant opacity-60 mt-0.5">{timeAgo(n.createdAt)}</p>
+                              </div>
+                              {!n.isRead && (
+                                <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Username */}
                 <div className="hidden sm:flex flex-col items-end">

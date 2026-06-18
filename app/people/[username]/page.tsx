@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/component/navbar";
@@ -10,6 +10,26 @@ import GameCard from "@/component/game-card";
 import GameStack from "@/component/games/game-stack";
 import Image from "next/image";
 import { getUserLists, listCoverImages, formatCount, type ListSummary } from "@/lib/lists-api";
+import { removeFromWatchlist } from "@/lib/game-api";
+import {
+  getProfile,
+  getFollowing,
+  followUser,
+  unfollowUser,
+  getFavoriteGames,
+  getUserGameLogs,
+  getUserWatchlist,
+  getUserReviews,
+  getUserLikedGames,
+  type UserProfile,
+  type FollowItem,
+  type GameLogEntry,
+  type FavoriteGameEntry,
+  type WatchlistEntry,
+  type ReviewEntry,
+  type LikedGameEntry,
+} from "@/lib/people-api";
+import { useAuthStore } from "@/store/auth.store";
 
 const DIARY_ENTRIES = [
   { id: 1, month: "June 2026", day: "09", title: "Elden Ring", poster: "/games/download (10).jpg", rating: 5, platform: "PC", note: "A living, breathing world — unmatched." },
@@ -29,12 +49,6 @@ const games = [
   { title: "Hitman Contracts", img: "/games/Hitman - Contracts.jpg", rating: 4, views: "600", likes: "150" },
 ];
 
-const FOLLOWING_USERS = [
-  { id: 1, name: "Elena Fisher", avatar: "/users/pewdiepie.jpg", reviews: "1.7k reviews", views: "5,241", lists: "34", likes: "1,892" },
-  { id: 2, name: "cob", avatar: "/users/pewdiepie.jpg", reviews: "2,740 reviews", views: "2,897", lists: "161", likes: "2,145" },
-  { id: 3, name: "zoë rose bryant", avatar: "/users/pewdiepie.jpg", reviews: "2,430 reviews", views: "5,065", lists: "56", likes: "2,710" },
-  { id: 4, name: "NeoPixel", avatar: "/users/pewdiepie.jpg", reviews: "169 reviews", views: "890", lists: "12", likes: "340" },
-];
 
 const PROFILE_LISTS = [
   {
@@ -82,25 +96,109 @@ export default function UserProfilePage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const username = (params.username as string) || "PEWDIEPIE";
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
+  const currentUser = useAuthStore((s) => s.user);
+  const isOwnProfile = currentUser?.username?.toLowerCase() === username.toLowerCase();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "Profile");
   const [userLists, setUserLists] = useState<ListSummary[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
-  const [followingSet, setFollowingSet] = useState<Set<number>>(
-    new Set(FOLLOWING_USERS.map((u) => u.id))
-  );
-  const toggleFollow = (id: number) => {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [followingItems, setFollowingItems] = useState<FollowItem[]>([]);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+  const [followLoadingSet, setFollowLoadingSet] = useState<Set<string>>(new Set());
+  const [favGames, setFavGames] = useState<FavoriteGameEntry[]>([]);
+  const [recentGames, setRecentGames] = useState<GameLogEntry[]>([]);
+  const [profileGamesLoading, setProfileGamesLoading] = useState(false);
+  const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
+  const [watchlistTotal, setWatchlistTotal] = useState(0);
+  const [recentReviews, setRecentReviews] = useState<ReviewEntry[]>([]);
+  const [tabReviews, setTabReviews] = useState<ReviewEntry[]>([]);
+  const [tabReviewsLoading, setTabReviewsLoading] = useState(false);
+  const [tabWatchlist, setTabWatchlist] = useState<WatchlistEntry[]>([]);
+  const [tabWatchlistLoading, setTabWatchlistLoading] = useState(false);
+  const [tabLikedGames, setTabLikedGames] = useState<LikedGameEntry[]>([]);
+  const [tabLikedGamesTotal, setTabLikedGamesTotal] = useState(0);
+  const [tabLikedGamesLoading, setTabLikedGamesLoading] = useState(false);
+
+  const toggleFollow = async (targetUsername: string) => {
+    if (!isLoggedIn) { openAuthModal("login"); return; }
+    if (followLoadingSet.has(targetUsername)) return;
+    setFollowLoadingSet((prev) => new Set(prev).add(targetUsername));
+    const wasFollowing = followingSet.has(targetUsername);
     setFollowingSet((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (wasFollowing) next.delete(targetUsername);
+      else next.add(targetUsername);
       return next;
     });
+    try {
+      if (wasFollowing) await unfollowUser(targetUsername);
+      else await followUser(targetUsername);
+    } catch {
+      setFollowingSet((prev) => {
+        const next = new Set(prev);
+        if (wasFollowing) next.add(targetUsername);
+        else next.delete(targetUsername);
+        return next;
+      });
+    } finally {
+      setFollowLoadingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(targetUsername);
+        return next;
+      });
+    }
   };
 
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) setActiveTab(tab);
   }, [searchParams]);
+
+  useEffect(() => {
+    getProfile(username)
+      .then((p) => setProfile(p))
+      .catch(() => {});
+  }, [username]);
+
+  useEffect(() => {
+    setProfileGamesLoading(true);
+    Promise.all([
+      getFavoriteGames(username),
+      getUserGameLogs(username, { limit: 4, orderBy: "playedAt", order: "desc" }),
+      getUserWatchlist(username, { limit: 4 }),
+      getUserReviews(username, { limit: 3 }),
+    ])
+      .then(([fav, recent, wl, reviews]) => {
+        setFavGames(fav);
+        setRecentGames(recent.items);
+        setWatchlist(wl.items);
+        setWatchlistTotal(wl.total);
+        setRecentReviews(reviews);
+      })
+      .catch(() => {})
+      .finally(() => setProfileGamesLoading(false));
+  }, [username]);
+
+  useEffect(() => {
+    if (activeTab !== "Reviews") return;
+    setTabReviewsLoading(true);
+    getUserReviews(username, { limit: 50 })
+      .then((r) => setTabReviews(r))
+      .catch(() => setTabReviews([]))
+      .finally(() => setTabReviewsLoading(false));
+  }, [activeTab, username]);
+
+  useEffect(() => {
+    if (activeTab !== "Watchlist") return;
+    setTabWatchlistLoading(true);
+    getUserWatchlist(username, { limit: 100 })
+      .then((r) => setTabWatchlist(r.items))
+      .catch(() => setTabWatchlist([]))
+      .finally(() => setTabWatchlistLoading(false));
+  }, [activeTab, username]);
 
   useEffect(() => {
     if (activeTab !== "Lists") return;
@@ -111,8 +209,28 @@ export default function UserProfilePage() {
       .finally(() => setListsLoading(false));
   }, [activeTab, username]);
 
-  const avatar =
-    username.toLowerCase() === "pewdiepie" ? "/users/pewdiepie.jpg" : "";
+  useEffect(() => {
+    if (activeTab !== "Likes") return;
+    setTabLikedGamesLoading(true);
+    getUserLikedGames(username, { limit: 100 })
+      .then((r) => { setTabLikedGames(r.items); setTabLikedGamesTotal(r.total); })
+      .catch(() => setTabLikedGames([]))
+      .finally(() => setTabLikedGamesLoading(false));
+  }, [activeTab, username]);
+
+  useEffect(() => {
+    if (activeTab !== "Following") return;
+    setFollowingLoading(true);
+    getFollowing(username, { limit: 50 })
+      .then((r) => {
+        setFollowingItems(r.items);
+        setFollowingSet(new Set(r.items.map((item) => item.following?.profile.username ?? "").filter(Boolean)));
+      })
+      .catch(() => setFollowingItems([]))
+      .finally(() => setFollowingLoading(false));
+  }, [activeTab, username]);
+
+  const avatar = profile?.avatarUrl ?? (username.toLowerCase() === "pewdiepie" ? "/users/pewdiepie.jpg" : "");
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -126,11 +244,32 @@ export default function UserProfilePage() {
                     Favorite Games
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {games.slice(0, 4).map((game, i) => (
-                    <GameCard key={i} game={game} />
-                  ))}
-                </div>
+                {profileGamesLoading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="aspect-[2/3] rounded bg-surface-container animate-pulse" />
+                    ))}
+                  </div>
+                ) : favGames.length === 0 ? (
+                  <p className="text-body-md text-on-surface-variant opacity-60">No games logged yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {favGames.map((entry) => (
+                      <GameCard
+                        key={entry.game.id}
+                        game={{
+                          id: entry.game.id,
+                          title: entry.game.title,
+                          slug: entry.game.slug,
+                          img: entry.game.coverUrl ?? undefined,
+                          rating: entry.game.avgRating || undefined,
+                          likes: entry.game.likeCount > 0 ? String(entry.game.likeCount) : undefined,
+                          views: entry.game.logCount > 0 ? String(entry.game.logCount) : undefined,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section>
@@ -139,11 +278,30 @@ export default function UserProfilePage() {
                     Recent Activity
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 opacity-80">
-                  {games.slice(2, 6).map((game, i) => (
-                    <GameCard key={i} game={game} />
-                  ))}
-                </div>
+                {profileGamesLoading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 opacity-80">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="aspect-[2/3] rounded bg-surface-container animate-pulse" />
+                    ))}
+                  </div>
+                ) : recentGames.length === 0 ? (
+                  <p className="text-body-md text-on-surface-variant opacity-60">No recent activity.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 opacity-80">
+                    {recentGames.map((log) => (
+                      <GameCard
+                        key={log.id}
+                        game={{
+                          id: log.game.id,
+                          title: log.game.title,
+                          slug: log.game.slug,
+                          img: log.game.coverUrl ?? undefined,
+                          rating: log.rating ? parseFloat(log.rating) : undefined,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
 
@@ -153,14 +311,22 @@ export default function UserProfilePage() {
                   <h2 className="text-label-sm font-bold tracking-[0.2em] text-on-surface-variant uppercase">
                     Watchlist
                   </h2>
-                  <span className="text-label-sm font-bold text-on-surface-variant">45</span>
+                  {watchlistTotal > 0 && (
+                    <span className="text-label-sm font-bold text-on-surface-variant">{watchlistTotal}</span>
+                  )}
                 </div>
-                <GameStack 
-                  images={games.slice(0, 4).map(g => g.img)}
-                  title="My Watchlist"
-                  href={`/people/${username}?tab=Watchlist`}
-                  showDetails={false}
-                />
+                {profileGamesLoading ? (
+                  <div className="aspect-[2/1] rounded bg-surface-container animate-pulse" />
+                ) : watchlist.length === 0 ? (
+                  <p className="text-body-md text-on-surface-variant opacity-60">Watchlist empty.</p>
+                ) : (
+                  <GameStack
+                    images={watchlist.map((w) => w.game.coverUrl).filter(Boolean) as string[]}
+                    title="Watchlist"
+                    href={`/people/${username}?tab=Watchlist`}
+                    showDetails={false}
+                  />
+                )}
               </section>
 
               <section>
@@ -169,37 +335,76 @@ export default function UserProfilePage() {
                     Recent Reviews
                   </h2>
                 </div>
-                <div className="flex flex-col gap-6">
-                  <div className="flex gap-4">
-                    <div className="w-16 h-24 shrink-0 rounded border border-surface-variant overflow-hidden relative">
-                      <Image
-                        src="/games/download (10).jpg"
-                        alt="Review"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <h3 className="text-body-md font-bold text-white uppercase tracking-wider">
-                        Elden Ring
-                      </h3>
-                      <div className="flex text-primary">
-                        {[...Array(5)].map((_, i) => (
-                          <span
-                            key={i}
-                            className="material-symbols-outlined text-[14px]"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            star
-                          </span>
-                        ))}
+                {profileGamesLoading ? (
+                  <div className="flex flex-col gap-4">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="flex gap-4 animate-pulse">
+                        <div className="w-16 h-24 shrink-0 rounded bg-surface-container" />
+                        <div className="flex flex-col gap-2 flex-1 pt-1">
+                          <div className="h-3 bg-surface-container rounded w-3/4" />
+                          <div className="h-3 bg-surface-container rounded w-1/2" />
+                        </div>
                       </div>
-                      <p className="text-label-sm text-on-surface-variant italic line-clamp-2">
-                        "A living, breathing world that respects your curiosity..."
-                      </p>
-                    </div>
+                    ))}
                   </div>
-                </div>
+                ) : recentReviews.length === 0 ? (
+                  <p className="text-body-md text-on-surface-variant opacity-60">No reviews yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-6">
+                    {recentReviews.map((review) => {
+                      const rating = review.rating ? parseFloat(review.rating) : 0;
+                      return (
+                        <Link
+                          key={review.id}
+                          href={`/games/${review.game.slug}`}
+                          className="flex gap-4 group"
+                        >
+                          <div className="w-16 h-24 shrink-0 rounded border border-surface-variant overflow-hidden relative">
+                            {review.game.coverUrl ? (
+                              <Image
+                                src={review.game.coverUrl}
+                                alt={review.game.title}
+                                fill
+                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center bg-surface-container">
+                                <span className="text-[10px] text-on-surface-variant text-center px-1">{review.game.title}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <h3 className="text-body-md font-bold text-white uppercase tracking-wider group-hover:text-primary transition-colors line-clamp-1">
+                              {review.game.title}
+                            </h3>
+                            {rating > 0 && (
+                              <div className="flex text-primary">
+                                {[1, 2, 3, 4, 5].map((s) => {
+                                  const filled = rating >= s;
+                                  const half = !filled && rating > s - 1;
+                                  return (
+                                    <span
+                                      key={s}
+                                      className="material-symbols-outlined text-[14px]"
+                                      style={{ fontVariationSettings: `'FILL' ${filled || half ? 1 : 0}` }}
+                                    >
+                                      {half ? "star_half" : "star"}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {review.body && (
+                              <p className="text-label-sm text-on-surface-variant italic line-clamp-2">
+                                &ldquo;{review.body}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             </aside>
           </div>
@@ -365,74 +570,100 @@ export default function UserProfilePage() {
         return (
           <div className="max-w-3xl mx-auto flex flex-col gap-10">
             <div className="flex justify-between items-center text-label-sm font-bold text-on-surface-variant uppercase tracking-widest border-b border-surface-variant pb-2">
-              <div>
-                SORT BY:{" "}
-                <span className="text-white cursor-pointer hover:text-primary transition-colors">
-                  NEWEST
-                </span>
-              </div>
-              <div>
-                FILTER:{" "}
-                <span className="text-white cursor-pointer hover:text-primary transition-colors">
-                  ALL REVIEWS
-                </span>
-              </div>
+              <span>{profile?.reviewsCount ?? tabReviews.length} Reviews</span>
             </div>
-            {games.slice(0, 3).map((game, i) => (
-              <article
-                key={i}
-                className="flex flex-col sm:flex-row gap-6 relative group pb-10 border-b border-surface-variant"
-              >
-                <div className="flex-shrink-0 w-32 sm:w-40">
-                  <div className="aspect-2/3 relative rounded overflow-hidden border border-surface-variant bg-surface-container-high">
-                    <Image src={game.img} alt={game.title} fill className="object-cover" />
+            {tabReviewsLoading ? (
+              <div className="flex flex-col gap-10">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex gap-6 animate-pulse">
+                    <div className="w-32 sm:w-40 aspect-[2/3] rounded bg-surface-container shrink-0" />
+                    <div className="flex flex-col gap-3 flex-1 pt-2">
+                      <div className="h-4 bg-surface-container rounded w-2/3" />
+                      <div className="h-3 bg-surface-container rounded w-1/3" />
+                      <div className="h-3 bg-surface-container rounded w-full" />
+                      <div className="h-3 bg-surface-container rounded w-4/5" />
+                    </div>
                   </div>
-                </div>
-                <div className="flex-grow flex flex-col">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h2 className="text-headline-sm font-bold text-white hover:text-primary cursor-pointer transition-colors">
-                        {game.title}
-                      </h2>
-                      <div className="flex items-center gap-2 text-label-md font-bold text-on-surface-variant uppercase tracking-widest mt-1">
-                        <span>2023</span>
-                        <span>•</span>
-                        <span>Reviewed by {username}</span>
+                ))}
+              </div>
+            ) : tabReviews.length === 0 ? (
+              <div className="py-20 text-center flex flex-col items-center gap-4 border-2 border-dashed border-surface-variant rounded-2xl">
+                <span className="material-symbols-outlined text-[48px] opacity-20 text-on-surface-variant">rate_review</span>
+                <p className="text-body-md text-on-surface-variant">No reviews yet.</p>
+              </div>
+            ) : (
+              tabReviews.map((review) => {
+                const rating = review.rating ? parseFloat(review.rating) : 0;
+                const date = new Date(review.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                return (
+                  <article
+                    key={review.id}
+                    className="flex flex-col sm:flex-row gap-6 relative group pb-10 border-b border-surface-variant"
+                  >
+                    <div className="flex-shrink-0 w-32 sm:w-40">
+                      <Link href={`/games/${review.game.slug}`}>
+                        <div className="aspect-[2/3] relative rounded overflow-hidden border border-surface-variant bg-surface-container-high">
+                          {review.game.coverUrl ? (
+                            <Image src={review.game.coverUrl} alt={review.game.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center p-2">
+                              <span className="text-on-surface-variant text-center text-label-sm">{review.game.title}</span>
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    </div>
+                    <div className="flex-grow flex flex-col">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <Link href={`/games/${review.game.slug}`}>
+                            <h2 className="text-headline-sm font-bold text-white hover:text-primary cursor-pointer transition-colors">
+                              {review.game.title}
+                            </h2>
+                          </Link>
+                          <div className="flex items-center gap-2 text-label-md font-bold text-on-surface-variant uppercase tracking-widest mt-1">
+                            <span>Reviewed by {username}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {rating > 0 && (
+                        <div className="flex items-center gap-0.5 mb-4 text-primary">
+                          {[1, 2, 3, 4, 5].map((s) => {
+                            const filled = rating >= s;
+                            const half = !filled && rating > s - 1;
+                            return (
+                              <span
+                                key={s}
+                                className="material-symbols-outlined text-[14px]"
+                                style={{ fontVariationSettings: `'FILL' ${filled || half ? 1 : 0}` }}
+                              >
+                                {half ? "star_half" : "star"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {review.body && (
+                        <div className="text-body-lg text-on-surface opacity-90 leading-relaxed mb-4">
+                          <p>{review.body}</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-6 mt-auto text-label-sm font-bold text-on-surface-variant uppercase tracking-widest">
+                        <div className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                          {review.likeCount} Likes
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-base">comment</span>
+                          {review.commentCount}
+                        </div>
+                        <div className="ml-auto">{date}</div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 mb-4 text-primary">
-                    {[...Array(5)].map((_, j) => (
-                      <span
-                        key={j}
-                        className="material-symbols-outlined text-[14px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        star
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-body-lg text-on-surface opacity-90 leading-relaxed mb-4">
-                    <p>
-                      The atmospheric storytelling in {game.title} is nothing short of masterful.
-                      It breathes with an authenticity that few games manage to capture.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-6 mt-auto text-label-sm font-bold text-on-surface-variant uppercase tracking-widest">
-                    <div className="flex items-center gap-1 cursor-pointer hover:text-error transition-colors">
-                      <span
-                        className="material-symbols-outlined text-base"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        favorite
-                      </span>{" "}
-                      24 Likes
-                    </div>
-                    <div className="ml-auto">Oct 12, 2023</div>
-                  </div>
-                </div>
-              </article>
-            ))}
+                  </article>
+                );
+              })
+            )}
           </div>
         );
 
@@ -440,33 +671,54 @@ export default function UserProfilePage() {
         return (
           <div className="flex flex-col gap-8">
             <div className="flex justify-between items-center border-b border-surface-variant pb-2">
-              <div className="flex gap-4">
-                <button className="text-label-md font-bold text-on-surface hover:text-primary transition-colors uppercase tracking-widest flex items-center gap-1">
-                  GENRE{" "}
-                  <span className="material-symbols-outlined text-[16px]">expand_more</span>
-                </button>
+              <span className="text-label-sm font-bold text-on-surface-variant uppercase tracking-[0.2em]">
+                {watchlistTotal > 0 ? `${watchlistTotal} Games` : "Watchlist"}
+              </span>
+            </div>
+            {tabWatchlistLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="aspect-[2/3] rounded bg-surface-container animate-pulse" />
+                ))}
               </div>
-              <button className="text-label-md font-bold text-on-surface-variant hover:text-white transition-colors uppercase tracking-widest flex items-center gap-1">
-                <span className="material-symbols-outlined text-[16px]">sort</span> DATE ADDED
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {[...games, ...games].map((game, i) => (
-                <div key={i} className="relative group">
-                  <GameCard game={game} />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-200 flex items-center justify-center pointer-events-none group-hover:opacity-100 rounded">
-                    <div className="w-12 h-12 rounded-full bg-error/90 text-white flex items-center justify-center shadow-lg">
-                      <span
-                        className="material-symbols-outlined"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
+            ) : tabWatchlist.length === 0 ? (
+              <div className="py-20 text-center flex flex-col items-center gap-4 border-2 border-dashed border-surface-variant rounded-2xl">
+                <span className="material-symbols-outlined text-[48px] opacity-20 text-on-surface-variant">watch_later</span>
+                <p className="text-body-md text-on-surface-variant">Watchlist empty.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {tabWatchlist.map((entry) => (
+                  <div key={entry.game.id} className="relative group">
+                    <GameCard
+                      game={{
+                        id: entry.game.id,
+                        title: entry.game.title,
+                        slug: entry.game.slug,
+                        img: entry.game.coverUrl ?? undefined,
+                      }}
+                    />
+                    {isOwnProfile && (
+                      <button
+                        className="absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-200 flex items-center justify-center group-hover:opacity-100 rounded"
+                        onClick={async () => {
+                          setTabWatchlist((prev) => prev.filter((w) => w.game.id !== entry.game.id));
+                          setWatchlistTotal((c) => Math.max(0, c - 1));
+                          try { await removeFromWatchlist(entry.game.id); } catch {
+                            setTabWatchlist((prev) => [...prev, entry]);
+                            setWatchlistTotal((c) => c + 1);
+                          }
+                        }}
                       >
-                        remove
-                      </span>
-                    </div>
+                        <div className="w-12 h-12 rounded-full bg-error/90 text-white flex items-center justify-center shadow-lg pointer-events-none">
+                          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>remove</span>
+                        </div>
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -516,6 +768,21 @@ export default function UserProfilePage() {
         );
 
       case "Following": {
+        if (followingLoading) {
+          return (
+            <div className="max-w-3xl flex flex-col gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-4 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-surface-container" />
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="h-3 bg-surface-container rounded w-32" />
+                    <div className="h-3 bg-surface-container rounded w-20" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
         return (
           <div className="max-w-3xl flex flex-col gap-0">
             <div className="flex justify-between items-center border-b border-surface-variant pb-2 mb-6">
@@ -523,10 +790,10 @@ export default function UserProfilePage() {
                 Following
               </h2>
               <span className="text-label-sm font-bold text-on-surface-variant">
-                {FOLLOWING_USERS.length}
+                {profile?.followingCount ?? followingItems.length}
               </span>
             </div>
-            {FOLLOWING_USERS.length === 0 ? (
+            {followingItems.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center gap-4 border-2 border-dashed border-surface-variant rounded-2xl">
                 <span className="material-symbols-outlined text-[48px] opacity-20 text-on-surface-variant">
                   group
@@ -535,62 +802,58 @@ export default function UserProfilePage() {
               </div>
             ) : (
               <div className="flex flex-col">
-                {FOLLOWING_USERS.map((member) => {
-                  const isFollowing = followingSet.has(member.id);
+                {followingItems.map((item) => {
+                  const u = item.following;
+                  if (!u) return null;
+                  const uname = u.profile.username;
+                  const isF = followingSet.has(uname);
+                  const isLoadingF = followLoadingSet.has(uname);
                   return (
                     <div
-                      key={member.id}
+                      key={u.id}
                       className="flex items-center justify-between py-4 border-b border-surface-variant hover:bg-surface-container-low transition-colors -mx-3 px-3 rounded group"
                     >
                       <div className="flex items-center gap-4">
-                        <Link href={`/people/${member.name.replace(/ /g, "-").toLowerCase()}`}>
-                          <img
-                            alt={member.name}
-                            className="w-10 h-10 rounded-full object-cover border border-outline-variant/50 group-hover:border-primary/50 transition-colors shadow-sm"
-                            src={member.avatar}
-                          />
+                        <Link href={`/people/${uname}`}>
+                          {u.profile.avatarUrl ? (
+                            <img
+                              alt={uname}
+                              className="w-10 h-10 rounded-full object-cover border border-outline-variant/50 group-hover:border-primary/50 transition-colors shadow-sm"
+                              src={u.profile.avatarUrl}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant/50 flex items-center justify-center">
+                              <span className="text-label-md font-bold text-on-surface-variant uppercase">
+                                {uname.charAt(0)}
+                              </span>
+                            </div>
+                          )}
                         </Link>
                         <div>
-                          <Link href={`/people/${member.name.replace(/ /g, "-").toLowerCase()}`}>
+                          <Link href={`/people/${uname}`}>
                             <h4 className="font-label-md text-base text-on-surface font-bold hover:text-primary cursor-pointer transition-colors">
-                              {member.name}
+                              {u.profile.name ?? uname}
                             </h4>
                           </Link>
-                          <p className="font-label-sm text-on-surface-variant opacity-80">{member.reviews}</p>
+                          <p className="font-label-sm text-on-surface-variant opacity-80 uppercase tracking-widest">
+                            @{uname}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 md:gap-6">
-                        <div className="hidden sm:flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-[18px] text-primary">visibility</span>
-                          <span className="font-label-sm text-on-surface-variant">{member.views}</span>
-                        </div>
-                        <div className="hidden sm:flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-[18px] text-on-surface-variant">grid_view</span>
-                          <span className="font-label-sm text-on-surface-variant">{member.lists}</span>
-                        </div>
-                        <div className="hidden sm:flex items-center gap-1.5">
-                          <span
-                            className="material-symbols-outlined text-[18px] text-error"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            favorite
-                          </span>
-                          <span className="font-label-sm text-on-surface-variant">{member.likes}</span>
-                        </div>
-                        <button
-                          onClick={() => toggleFollow(member.id)}
-                          className={`rounded-full w-8 h-8 flex items-center justify-center ml-2 shadow-sm transition-all ${
-                            isFollowing
-                              ? "bg-primary text-on-primary-container"
-                              : "bg-surface-container-high text-on-surface hover:bg-primary hover:text-on-primary-container"
-                          }`}
-                          title={isFollowing ? "Unfollow" : "Follow"}
-                        >
-                          <span className="material-symbols-outlined text-sm font-bold">
-                            {isFollowing ? "check" : "add"}
-                          </span>
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => toggleFollow(uname)}
+                        disabled={isLoadingF}
+                        className={`rounded-full w-8 h-8 flex items-center justify-center ml-2 shadow-sm transition-all disabled:opacity-50 ${
+                          isF
+                            ? "bg-primary text-on-primary-container"
+                            : "bg-surface-container-high text-on-surface hover:bg-primary hover:text-on-primary-container"
+                        }`}
+                        title={isF ? "Unfollow" : "Follow"}
+                      >
+                        <span className="material-symbols-outlined text-sm font-bold">
+                          {isF ? "check" : "add"}
+                        </span>
+                      </button>
                     </div>
                   );
                 })}
@@ -602,58 +865,47 @@ export default function UserProfilePage() {
 
       case "Likes":
         return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <aside className="hidden md:block md:col-span-1">
-              <div className="sticky top-24">
-                <h2 className="text-label-md font-bold text-on-surface-variant mb-4 uppercase tracking-widest">
-                  Filter Likes
-                </h2>
-                <ul className="flex flex-col gap-2">
-                  <li>
-                    <button className="w-full flex items-center justify-between text-label-md font-bold text-primary p-2 -ml-2 rounded bg-surface-variant/30 uppercase tracking-widest">
-                      <span>All Likes</span> <span>342</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button className="w-full flex items-center justify-between text-label-md font-bold text-on-surface-variant hover:text-white transition-colors p-2 -ml-2 rounded uppercase tracking-widest">
-                      <span>Games</span> <span>128</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button className="w-full flex items-center justify-between text-label-md font-bold text-on-surface-variant hover:text-white transition-colors p-2 -ml-2 rounded uppercase tracking-widest">
-                      <span>Reviews</span> <span>185</span>
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </aside>
-            <div className="md:col-span-3 flex flex-col gap-12">
-              <section>
-                <div className="flex justify-between items-center border-b border-surface-variant pb-2 mb-6">
-                  <h2 className="text-label-sm font-bold text-on-surface-variant uppercase tracking-widest">
-                    Liked Games
-                  </h2>
-                  <button className="text-label-sm font-bold text-on-surface-variant hover:text-white transition-colors uppercase tracking-widest">
-                    VIEW ALL
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {games.slice(0, 4).map((game, i) => (
-                    <div key={i} className="relative group">
-                      <GameCard game={{ ...game, likes: undefined, views: undefined, rating: undefined }} />
-                      <div className="absolute top-2 right-2 z-20">
-                        <span
-                          className="material-symbols-outlined text-[16px] text-error"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          favorite
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+          <div className="flex flex-col gap-8">
+            <div className="flex justify-between items-center border-b border-surface-variant pb-2">
+              <span className="text-label-sm font-bold text-on-surface-variant uppercase tracking-[0.2em]">
+                {tabLikedGamesTotal > 0 ? `${tabLikedGamesTotal} Liked Games` : "Liked Games"}
+              </span>
             </div>
+            {tabLikedGamesLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="aspect-[2/3] rounded bg-surface-container animate-pulse" />
+                ))}
+              </div>
+            ) : tabLikedGames.length === 0 ? (
+              <div className="py-20 text-center flex flex-col items-center gap-4 border-2 border-dashed border-surface-variant rounded-2xl">
+                <span className="material-symbols-outlined text-[48px] opacity-20 text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                <p className="text-body-md text-on-surface-variant">No liked games yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {tabLikedGames.map((entry) => (
+                  <div key={entry.game.id} className="relative group">
+                    <GameCard
+                      game={{
+                        id: entry.game.id,
+                        title: entry.game.title,
+                        slug: entry.game.slug,
+                        img: entry.game.coverUrl ?? undefined,
+                      }}
+                    />
+                    <div className="absolute top-2 right-2 z-20">
+                      <span
+                        className="material-symbols-outlined text-[16px] text-error"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        favorite
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -681,7 +933,15 @@ export default function UserProfilePage() {
       <Navbar />
 
       <main className="w-full max-w-[1100px] mx-auto px-gutter py-6">
-        <ProfileHeader username={username} avatar={avatar} />
+        <ProfileHeader
+          username={username}
+          avatar={avatar}
+          isFollowing={profile?.isFollowing}
+          followersCount={profile?.followersCount}
+          followingCount={profile?.followingCount}
+          gamesCount={profile?.gamesCount}
+          reviewsCount={profile?.reviewsCount}
+        />
         <ProfileNav activeTab={activeTab} onTabChange={setActiveTab} />
 
         {renderTabContent()}

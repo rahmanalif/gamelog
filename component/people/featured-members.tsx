@@ -1,34 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { listUsers, followUser, unfollowUser, getFollowing, type UserSummary } from "@/lib/people-api";
+import { useAuthStore } from "@/store/auth.store";
 
-const FEATURED_MEMBERS = [
-  { id: 1, name: "Elena Fisher", avatar: "/users/pewdiepie.jpg", stats: "5.7k games • 1.7k reviews" },
-  { id: 2, name: "Alex Chen", avatar: "/users/pewdiepie.jpg", stats: "664 games • 561 reviews" },
-  { id: 3, name: "Sarah Jenkins", avatar: "/users/pewdiepie.jpg", stats: "377 games • 335 reviews" },
-  { id: 4, name: "NeoPixel", avatar: "/users/pewdiepie.jpg", stats: "1.4k games • 169 reviews" },
-  { id: 5, name: "RetroRogue", avatar: "/users/pewdiepie.jpg", stats: "1k games • 112 reviews" },
-];
+function UserAvatar({ user, size = 128 }: { user: UserSummary; size?: number }) {
+  const [err, setErr] = useState(false);
+  const colors = ["bg-[#f97316]","bg-[#22c55e]","bg-[#3b82f6]","bg-[#a855f7]","bg-[#ec4899]","bg-[#14b8a6]"];
+  const color = colors[(user.username ?? "").split("").reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
+  const cls = size >= 128 ? "w-24 h-24 md:w-32 md:h-32" : "w-10 h-10";
 
-const MEMBER_GAMES = [
-  "/games/download (10).jpg",
-  "/games/Devil May Cry 3_ Special Edition PS2 NTSC-J.jpg",
-  "/games/RE4 PS2 cover_ Resident Evil 4 ps2 cover.jpg",
-  "/games/download (7).jpg",
-];
+  if (!user.avatarUrl || err) {
+    return (
+      <div className={`${cls} rounded-full ${color} flex items-center justify-center border-2 border-surface-container-high`}>
+        <span className="font-bold text-white text-xl select-none">{(user.username ?? "?").charAt(0).toUpperCase()}</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      alt={user.username ?? ""}
+      src={user.avatarUrl}
+      className={`${cls} rounded-full border-2 border-surface-container-high object-cover`}
+      onError={() => setErr(true)}
+    />
+  );
+}
 
 export default function FeaturedMembers() {
-  const [followed, setFollowed] = useState<Set<number>>(new Set());
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const currentUser = useAuthStore((s) => s.user);
+  const openAuthModal = useAuthStore((s) => s.openAuthModal);
+  const [members, setMembers] = useState<UserSummary[]>([]);
+  const [followed, setFollowed] = useState<Set<string>>(new Set());
+  const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
 
-  const toggle = (id: number) => {
-    setFollowed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  useEffect(() => {
+    listUsers({ sort: "followers", limit: 5 })
+      .then((r) => setMembers(r.items))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser?.username) return;
+    getFollowing(currentUser.username, { limit: 100 })
+      .then((r) => {
+        const names = r.items.map((i) => i.following?.profile.username ?? "").filter(Boolean);
+        setFollowed(new Set(names));
+      })
+      .catch(() => {});
+  }, [isLoggedIn, currentUser?.username]);
+
+  const toggle = async (username: string) => {
+    if (!isLoggedIn) { openAuthModal("login"); return; }
+    if (loadingSet.has(username)) return;
+    setLoadingSet((prev) => new Set(prev).add(username));
+    const was = followed.has(username);
+    setFollowed((prev) => { const n = new Set(prev); was ? n.delete(username) : n.add(username); return n; });
+    try {
+      if (was) await unfollowUser(username);
+      else await followUser(username);
+    } catch {
+      setFollowed((prev) => { const n = new Set(prev); was ? n.add(username) : n.delete(username); return n; });
+    } finally {
+      setLoadingSet((prev) => { const n = new Set(prev); n.delete(username); return n; });
+    }
   };
+
+  if (members.length === 0) return null;
 
   return (
     <section className="mb-stack-lg">
@@ -36,59 +76,65 @@ export default function FeaturedMembers() {
         Featured Members
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-        {FEATURED_MEMBERS.map((member) => {
-          const isFollowed = followed.has(member.id);
+        {members.map((member) => {
+          const uname = member.username ?? "";
+          const isFollowed = followed.has(uname);
+          const isOwn = currentUser?.username?.toLowerCase() === uname.toLowerCase();
           return (
             <div key={member.id} className="flex flex-col items-center group cursor-pointer">
               <div className="relative mb-3">
-                <Link href={`/people/${member.name.replace(/ /g, '-').toLowerCase()}`}>
-                  <img
-                    alt={member.name}
-                    className="w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-surface-container-high object-cover group-hover:border-primary transition-colors shadow-sm"
-                    src={member.avatar}
-                  />
+                <Link href={`/people/${uname}`}>
+                  <UserAvatar user={member} size={128} />
                 </Link>
-                <button
-                  onClick={() => toggle(member.id)}
-                  className={`absolute bottom-0 right-2 md:right-4 rounded-full w-8 h-8 flex items-center justify-center border-2 border-background transition-all shadow-sm ${
-                    isFollowed
-                      ? "bg-primary text-on-primary-container"
-                      : "bg-surface-container-high hover:bg-primary hover:text-on-primary-container text-on-surface"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-sm font-bold">
-                    {isFollowed ? "check" : "add"}
-                  </span>
-                </button>
+                {!isOwn && (
+                  <button
+                    onClick={() => toggle(uname)}
+                    disabled={loadingSet.has(uname)}
+                    className={`absolute bottom-0 right-2 md:right-4 rounded-full w-8 h-8 flex items-center justify-center border-2 border-background transition-all shadow-sm disabled:opacity-50 ${
+                      isFollowed
+                        ? "bg-primary text-on-primary-container"
+                        : "bg-surface-container-high hover:bg-primary hover:text-on-primary-container text-on-surface"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm font-bold">
+                      {isFollowed ? "check" : "add"}
+                    </span>
+                  </button>
+                )}
               </div>
-              <Link href={`/people/${member.name.replace(/ /g, '-').toLowerCase()}`}>
+              <Link href={`/people/${uname}`}>
                 <h3 className="font-headline text-lg text-on-surface font-bold leading-tight group-hover:text-primary transition-colors text-center">
-                  {member.name}
+                  {member.name ?? uname}
                 </h3>
               </Link>
               <p className="font-label-sm text-[11px] text-on-surface-variant mb-2 text-center opacity-80">
-                {member.stats}
+                {member.gamesCount.toLocaleString()} games • {member.reviewsCount.toLocaleString()} reviews
               </p>
-              <button
-                onClick={() => toggle(member.id)}
-                className={`text-label-sm font-bold uppercase tracking-widest px-4 py-1 rounded transition-all ${
-                  isFollowed
-                    ? "text-primary border border-primary/40 hover:bg-error/10 hover:text-error hover:border-error/40"
-                    : "text-on-surface-variant border border-surface-variant hover:text-white hover:border-outline"
-                }`}
-              >
-                {isFollowed ? "Following" : "Follow"}
-              </button>
-              <div className="flex gap-1 justify-center mt-2">
-                {MEMBER_GAMES.map((img, i) => (
-                  <img
-                    key={i}
-                    alt="Game Poster"
-                    className="w-8 h-12 object-cover rounded-sm border border-outline-variant/30 shadow-sm"
-                    src={img}
-                  />
-                ))}
-              </div>
+              {!isOwn && (
+                <button
+                  onClick={() => toggle(uname)}
+                  disabled={loadingSet.has(uname)}
+                  className={`text-label-sm font-bold uppercase tracking-widest px-4 py-1 rounded transition-all disabled:opacity-50 ${
+                    isFollowed
+                      ? "text-primary border border-primary/40 hover:bg-error/10 hover:text-error hover:border-error/40"
+                      : "text-on-surface-variant border border-surface-variant hover:text-white hover:border-outline"
+                  }`}
+                >
+                  {isFollowed ? "Following" : "Follow"}
+                </button>
+              )}
+              {(member.recentGameCovers ?? []).length > 0 && (
+                <div className="flex gap-1 justify-center mt-2">
+                  {(member.recentGameCovers ?? []).map((cover, i) => (
+                    <img
+                      key={i}
+                      alt="Game"
+                      className="w-8 h-12 object-cover rounded-sm border border-outline-variant/30 shadow-sm"
+                      src={cover}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
