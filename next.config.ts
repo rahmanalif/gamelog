@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
         hostname: "images.igdb.com",
         pathname: "/**",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        pathname: "/uploads/**",
+      },
     ],
   },
 };

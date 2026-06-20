@@ -143,6 +143,37 @@ export async function updateProfile(data: UpdateProfileInput): Promise<UserProfi
   return unwrap<UserProfile>(raw);
 }
 
+export async function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
+  const form = new FormData();
+  form.append('avatar', file);
+
+  const headers = new Headers();
+  const token = getStoredAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  let res = await fetch(`${API_BASE_URL}/users/me/avatar`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  if (res.status === 401 && token) {
+    const freshToken = await refreshStoredAuth();
+    if (freshToken) {
+      headers.set('Authorization', `Bearer ${freshToken}`);
+      res = await fetch(`${API_BASE_URL}/users/me/avatar`, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+    }
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(getError(data, res.statusText));
+  return unwrap<{ avatarUrl: string }>(data);
+}
+
 export async function followUser(username: string): Promise<void> {
   await peopleRequest<void>(`/users/${username}/follow`, { method: "POST" });
 }

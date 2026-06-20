@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import { GameSummary, searchGames } from '@/lib/game-api';
+import { getProfile } from '@/lib/people-api';
 import {
   getNotifications,
   markNotificationsRead,
@@ -65,6 +66,20 @@ export default function Navbar() {
   useEffect(() => {
     fetchUnreadCount();
   }, [fetchUnreadCount]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !username || username === 'Account') return;
+    getProfile(username)
+      .then((p) => {
+        if (p.avatarUrl && p.avatarUrl !== user?.avatar) {
+          const { tokens, completeAuth } = useAuthStore.getState();
+          if (user && tokens) {
+            completeAuth({ user: { ...user, avatar: p.avatarUrl }, tokens });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn, username]);
 
   const openNotifications = async () => {
     const next = !notifOpen;

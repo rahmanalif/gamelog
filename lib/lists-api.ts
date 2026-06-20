@@ -16,6 +16,7 @@ export type ListSummary = {
   slug: string;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   privacy: ListPrivacy;
   likeCount: number;
   commentCount: number;
@@ -84,6 +85,7 @@ export type UpdateListInput = {
   title?: string;
   description?: string;
   privacy?: ListPrivacy;
+  coverImageUrl?: string;
 };
 
 export type AddGameInput = {

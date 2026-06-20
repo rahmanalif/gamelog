@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth.store";
 import { followUser, unfollowUser } from "@/lib/people-api";
@@ -82,12 +81,10 @@ export default function ProfileHeader({
               </span>
             </div>
           ) : (
-            <Image
+            <img
               src={avatar}
               alt={username}
-              width={128}
-              height={128}
-              className="object-cover grayscale hover:grayscale-0 transition-all duration-500"
+              className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500"
               onError={() => setAvatarError(true)}
             />
           )}

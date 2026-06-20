@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import {
   getProfile,
   updateProfile,
+  uploadAvatar,
   getFavoriteGames,
   setFavoriteGames,
   type FavoriteGameEntry,
@@ -28,6 +29,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function EditProfilePage() {
   const user = useAuthStore((s) => s.user);
+  const completeAuth = useAuthStore((s) => s.completeAuth);
+  const tokens = useAuthStore((s) => s.tokens);
   const username = user?.username ?? "";
 
   // profile text fields
@@ -46,6 +49,12 @@ export default function EditProfilePage() {
   const [results, setResults] = useState<GameSummary[]>([]);
   const [searching, setSearching] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // avatar
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // save
   const [saving, setSaving] = useState(false);
@@ -68,6 +77,10 @@ export default function EditProfilePage() {
         setWebsite(prof.website ?? "");
         setTwitter(prof.twitter ?? "");
         setDiscord(prof.discord ?? "");
+        setAvatarUrl(prof.avatarUrl ?? null);
+        if (prof.avatarUrl && prof.avatarUrl !== user?.avatar && user && tokens) {
+          completeAuth({ user: { ...user, avatar: prof.avatarUrl }, tokens });
+        }
 
         const slots: FavoriteSlot[] = [null, null, null, null];
         favEntries.forEach((e) => { slots[e.position - 1] = e.game; });
@@ -120,6 +133,31 @@ export default function EditProfilePage() {
     setFavorites((prev) => { const next = [...prev]; next[slot] = null; return next; });
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+    setAvatarUploading(true);
+    setSaveMsg(null);
+
+    try {
+      const result = await uploadAvatar(file);
+      setAvatarUrl(result.avatarUrl);
+      if (user && tokens) {
+        completeAuth({ user: { ...user, avatar: result.avatarUrl }, tokens });
+      }
+      setSaveMsg({ text: "Avatar updated.", ok: true });
+    } catch (err: unknown) {
+      setAvatarPreview(null);
+      const msg = err instanceof Error ? err.message : "Failed to upload avatar.";
+      setSaveMsg({ text: msg, ok: false });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -168,21 +206,49 @@ export default function EditProfilePage() {
 
           {/* Avatar */}
           <section className="flex flex-col sm:flex-row items-center sm:items-start gap-8 p-8 bg-surface-container-low border border-surface-variant rounded-xl">
-            <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-surface-variant bg-surface-container-high relative group cursor-pointer flex-shrink-0 shadow-lg">
-              <div className="absolute inset-0 bg-surface-container-high flex items-center justify-center">
-                <span className="font-display text-display-lg text-white font-bold select-none">
-                  {username.charAt(0).toUpperCase()}
-                </span>
-              </div>
+            <div
+              className="w-32 h-32 rounded-full overflow-hidden border-2 border-surface-variant bg-surface-container-high relative group cursor-pointer flex-shrink-0 shadow-lg"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {(avatarPreview || avatarUrl) ? (
+                <img
+                  src={avatarPreview || avatarUrl!}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-surface-container-high flex items-center justify-center">
+                  <span className="font-display text-display-lg text-white font-bold select-none">
+                    {username.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
                 <span className="material-symbols-outlined text-white text-[32px]">photo_camera</span>
               </div>
+              {avatarUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <span className="text-white text-label-sm font-bold uppercase tracking-widest animate-pulse">Uploading...</span>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-3 text-center sm:text-left justify-center h-full pt-4">
-              <button className="px-6 py-2 border-2 border-surface-variant text-on-surface font-bold text-label-md uppercase tracking-widest rounded hover:bg-surface-variant hover:border-outline-variant transition-all w-fit mx-auto sm:mx-0 shadow-sm" type="button">
-                CHANGE AVATAR
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              <button
+                className="px-6 py-2 border-2 border-surface-variant text-on-surface font-bold text-label-md uppercase tracking-widest rounded hover:bg-surface-variant hover:border-outline-variant transition-all w-fit mx-auto sm:mx-0 shadow-sm"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={avatarUploading}
+              >
+                {avatarUploading ? "UPLOADING..." : "CHANGE AVATAR"}
               </button>
-              <span className="font-medium text-label-sm text-on-surface-variant uppercase tracking-widest">JPG or PNG, max 5MB.</span>
+              <span className="font-medium text-label-sm text-on-surface-variant uppercase tracking-widest">JPG, PNG or WebP, max 5MB.</span>
             </div>
           </section>
 

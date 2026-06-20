@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/auth.store";
 import LogGameModal from "./log-game-modal";
 import AddToListModal from "./add-to-list-modal";
@@ -67,6 +67,79 @@ function RatingStars({ value, size = "text-2xl" }: { value: number; size?: strin
   );
 }
 
+function ImageLightbox({
+  images,
+  index,
+  onClose,
+  onNavigate,
+}: {
+  images: string[];
+  index: number;
+  onClose: () => void;
+  onNavigate: (index: number) => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onNavigate((index + 1) % images.length);
+      if (e.key === "ArrowLeft") onNavigate((index - 1 + images.length) % images.length);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [index, images.length, onClose, onNavigate]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 text-white/70 hover:text-white z-10"
+        onClick={onClose}
+      >
+        <span className="material-symbols-outlined text-3xl">close</span>
+      </button>
+
+      <button
+        className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white z-10"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNavigate((index - 1 + images.length) % images.length);
+        }}
+      >
+        <span className="material-symbols-outlined text-4xl">chevron_left</span>
+      </button>
+
+      <div
+        className="relative w-[90vw] h-[80vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Image
+          src={images[index]}
+          alt={`Screenshot ${index + 1}`}
+          fill
+          className="object-contain"
+          sizes="90vw"
+        />
+      </div>
+
+      <button
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white z-10"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNavigate((index + 1) % images.length);
+        }}
+      >
+        <span className="material-symbols-outlined text-4xl">chevron_right</span>
+      </button>
+
+      <div className="absolute bottom-4 text-white/60 font-label-sm text-label-sm tracking-widest">
+        {index + 1} / {images.length}
+      </div>
+    </div>
+  );
+}
+
 function UserRatingPanel({ rating, onEdit }: { rating?: number; onEdit: () => void }) {
   if (!rating) return null;
 
@@ -108,6 +181,17 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
   const [likeCount, setLikeCount] = useState(game?.likeCount ?? 0);
   const [watchlistCount, setWatchlistCount] = useState(game?.watchlistCount ?? 0);
   const [actionError, setActionError] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const galleryImages = useMemo(() => {
+    const imgs = currentGame?.images ?? [];
+    return imgs.filter((url) => url !== currentGame?.coverImage);
+  }, [currentGame?.images, currentGame?.coverImage]);
+
+  const handleNavigate = useCallback(
+    (i: number) => setLightboxIndex(i),
+    [],
+  );
 
   useEffect(() => {
     if (!slug || !isLoggedIn) return;
@@ -382,8 +466,44 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
               ))}
             </div>
           </div>
+
+          {galleryImages.length > 0 && (
+            <div className="mt-4">
+              <h3 className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-3 font-bold">
+                Gallery
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {galleryImages.map((url, i) => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    className="relative aspect-video rounded-lg overflow-hidden border border-surface-variant hover:border-primary-container transition-colors group"
+                  >
+                    <Image
+                      src={url}
+                      alt={`Screenshot ${i + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 33vw"
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {lightboxIndex !== null && galleryImages.length > 0 && (
+        <ImageLightbox
+          images={galleryImages}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={handleNavigate}
+        />
+      )}
 
       <LogGameModal
         isOpen={isLogModalOpen}

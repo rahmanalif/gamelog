@@ -28,6 +28,7 @@ export type GameDetail = Omit<GameSummary, "genres" | "platforms"> & {
   description?: string | null;
   developer?: string | null;
   publisher?: string | null;
+  images?: string[];
   logCount?: number;
   viewCount?: number;
   likeCount?: number;
@@ -248,6 +249,7 @@ function normalizeGameDetail(game: unknown): GameDetail {
     description: (record.description ?? null) as string | null,
     developer: (record.developer ?? getFirstCompanyName(record.developers)) as string | null,
     publisher: (record.publisher ?? getFirstCompanyName(record.publishers)) as string | null,
+    images: Array.isArray(record.images) ? (record.images as string[]) : [],
     logCount: toNumber(record.logCount),
     viewCount: toNumber(record.viewCount ?? record.logCount),
     likeCount: toNumber(record.likeCount),
