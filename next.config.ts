@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         hostname: "media.rawg.io",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "images.igdb.com",
+        pathname: "/**",
+      },
     ],
   },
 };
