@@ -104,7 +104,7 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
           maskImage:
               "linear-gradient(to bottom, black 0%, black 50%, transparent 100%)",
           }}
-          src={game?.backdropImage ?? "/elder 2.jpg"}
+          src={game?.backdropImage ?? game?.coverImage ?? "/elder 2.jpg"}
         />
       </div>
 
