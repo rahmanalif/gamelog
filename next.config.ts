@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
         hostname: "localhost",
         pathname: "/uploads/**",
       },
+      {
+        protocol: "https",
+        hostname: "gamelog.okaybro.online",
+        pathname: "/uploads/**",
+      },
     ],
   },
 };

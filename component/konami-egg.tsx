@@ -14,103 +14,83 @@ const KEY_LABELS: Record<string, string> = {
   ArrowRight: "→",
 };
 
-function keyLabel(key: string) {
-  return KEY_LABELS[key] || key.toUpperCase();
-}
-
-type KeyEntry = { label: string; correct: boolean; id: number };
-
 export default function KonamiEgg() {
-  const [show, setShow] = useState(false);
-  const [keys, setKeys] = useState<KeyEntry[]>([]);
-  const idCounter = useRef(0);
+  const [triggered, setTriggered] = useState(false);
+  const [visibleKeys, setVisibleKeys] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+  const posRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const resetKeys = useCallback(() => {
-    setKeys([]);
+  const reset = useCallback(() => {
+    posRef.current = 0;
   }, []);
-
-  const restartTimer = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(resetKeys, 5000);
-  }, [resetKeys]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (show) return;
+      if (triggered) return;
 
-      const key = e.key;
-      const currentIndex = keys.length;
-      const expected = SEQUENCE[currentIndex];
-      const isCorrect = expected !== undefined && key.toLowerCase() === expected.toLowerCase();
+      const expected = SEQUENCE[posRef.current];
+      if (expected && e.key.toLowerCase() === expected.toLowerCase()) {
+        posRef.current++;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(reset, 5000);
 
-      idCounter.current++;
-      const entry: KeyEntry = {
-        label: keyLabel(key),
-        correct: isCorrect,
-        id: idCounter.current,
-      };
-
-      if (isCorrect) {
-        const next = [...keys, entry];
-        setKeys(next);
-        restartTimer();
-
-        if (next.length === SEQUENCE.length) {
-          setShow(true);
+        if (posRef.current === SEQUENCE.length) {
+          setTriggered(true);
           if (timerRef.current) clearTimeout(timerRef.current);
-          setTimeout(resetKeys, 300);
         }
       } else {
-        setKeys((prev) => [...prev, entry]);
+        posRef.current = 0;
         if (timerRef.current) clearTimeout(timerRef.current);
-        setTimeout(resetKeys, 800);
       }
     }
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [keys, show, restartTimer, resetKeys]);
+  }, [triggered, reset]);
 
   useEffect(() => {
-    if (show) {
-      dismissRef.current = setTimeout(() => setShow(false), 5000);
-    }
-    return () => {
-      if (dismissRef.current) clearTimeout(dismissRef.current);
-    };
-  }, [show]);
+    if (!triggered) return;
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setVisibleKeys(i);
+      if (i >= SEQUENCE.length) {
+        clearInterval(interval);
+        setTimeout(() => setShowModal(true), 400);
+      }
+    }, 150);
+
+    return () => clearInterval(interval);
+  }, [triggered]);
+
+  function dismiss() {
+    setShowModal(false);
+    setTriggered(false);
+    setVisibleKeys(0);
+    posRef.current = 0;
+  }
 
   return (
     <>
-      {keys.length > 0 && (
-        <div className="fixed top-[4.5rem] left-4 z-[199] flex items-center gap-1 animate-in fade-in">
-          {keys.map((k) => (
+      {triggered && visibleKeys > 0 && (
+        <div className="fixed top-[4.5rem] left-4 z-[199] flex items-center gap-1">
+          {SEQUENCE.slice(0, visibleKeys).map((key, i) => (
             <span
-              key={k.id}
-              className={`inline-flex size-7 items-center justify-center rounded-md text-xs font-bold border transition-all duration-200 ${
-                k.correct
-                  ? "border-primary/40 bg-primary/20 text-primary shadow-[0_0_8px_rgba(0,230,118,0.3)]"
-                  : "border-error/40 bg-error/20 text-error shadow-[0_0_8px_rgba(255,50,50,0.3)]"
-              }`}
+              key={i}
+              className="inline-flex size-7 items-center justify-center rounded-md text-xs font-bold border border-primary/40 bg-primary/20 text-primary shadow-[0_0_8px_rgba(0,230,118,0.3)] animate-[pop_0.2s_ease-out]"
             >
-              {k.label}
+              {KEY_LABELS[key] || key.toUpperCase()}
             </span>
           ))}
         </div>
       )}
 
-      {show && (
+      {showModal && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md"
-          onClick={() => setShow(false)}
+          onClick={dismiss}
         >
           <div
             className="relative mx-4 w-full max-w-sm rounded-2xl border border-primary/30 bg-surface-container p-8 text-center shadow-[0_0_80px_rgba(0,230,118,0.15)]"
@@ -118,7 +98,7 @@ export default function KonamiEgg() {
           >
             <button
               className="absolute top-3 right-3 text-on-surface-variant hover:text-on-surface transition-colors"
-              onClick={() => setShow(false)}
+              onClick={dismiss}
             >
               <span className="material-symbols-outlined">close</span>
             </button>
@@ -154,6 +134,14 @@ export default function KonamiEgg() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes pop {
+          0% { transform: scale(0); opacity: 0; }
+          70% { transform: scale(1.2); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </>
   );
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import HeroCta from "@/component/hero-cta";
 
 type HeroImageData = {
   gameId: string;
@@ -43,12 +43,7 @@ export default async function Hero() {
           Save those you want to play.<br/>
           Tell your friends what's good.
         </h1>
-        <Link
-          href="#"
-          className="inline-block bg-[#00e676] text-[#00210b] font-label-md text-label-md uppercase tracking-widest px-10 py-4 rounded-lg hover:bg-primary transition-all duration-300 transform hover:scale-105 shadow-lg active:scale-95"
-        >
-          GET STARTED — IT'S FREE
-        </Link>
+        <HeroCta />
         <p className="mt-6 text-on-surface-variant font-body text-base drop-shadow-md">The social network for game lovers.</p>
       </div>
     </section>

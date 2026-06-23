@@ -7,6 +7,9 @@ import KonamiEgg from "@/component/konami-egg";
 export const metadata: Metadata = {
   title: "Gamelog - Track games you've played.",
   description: "The social network for game lovers.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
