@@ -116,7 +116,7 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
         <BackButton />
       </div>
 
-      <main className="w-full max-w-container-max mx-auto px-gutter mt-12 md:mt-55 pb-12 flex flex-col gap-12 relative z-20">
+      <main className="w-full max-w-container-max mx-auto px-gutter mt-28 sm:mt-36 md:mt-55 pb-12 flex flex-col gap-12 relative z-20">
         <GameHero gameTitle={fallbackTitle} game={game} slug={slug} />
         <Suspense fallback={<GameReviewsSkeleton />}>
           <GameDetailsTabs gameId={gameId} primaryGenre={primaryGenre} />

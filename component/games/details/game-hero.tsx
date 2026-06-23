@@ -291,19 +291,19 @@ export default function GameHero({ gameTitle = "Elden Ring", game, slug }: GameH
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter md:gap-8 lg:gap-12 relative">
-        <div className="md:col-span-4 lg:col-span-3">
-          <div className="relative w-full aspect-2/3 rounded-lg overflow-hidden border border-surface-variant group shadow-[0_0_40px_rgba(0,230,118,0.05)] transition-all duration-300 hover:border-primary-container hover:shadow-[0_0_40px_rgba(0,230,118,0.15)]">
+        <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center md:items-stretch">
+          <div className="relative w-48 sm:w-56 md:w-full aspect-2/3 rounded-lg overflow-hidden border border-surface-variant group shadow-[0_0_40px_rgba(0,230,118,0.05)] transition-all duration-300 hover:border-primary-container hover:shadow-[0_0_40px_rgba(0,230,118,0.15)]">
             <Image
               alt={`${title} Box Art`}
               src={currentGame?.coverImage ?? "/elder.jpg"}
               fill
-              sizes="(max-width: 768px) 100vw, 25vw"
+              sizes="(max-width: 640px) 192px, (max-width: 768px) 224px, 25vw"
               className="object-cover"
               preload
             />
           </div>
 
-          <div className="mt-stack-sm flex justify-between items-center px-2 py-3 border-y border-surface-variant">
+          <div className="mt-stack-sm flex justify-between items-center px-2 py-3 border-y border-surface-variant w-48 sm:w-56 md:w-full">
             <div className="flex flex-col items-center">
               <span className="material-symbols-outlined text-on-surface-variant text-lg">
                 visibility
