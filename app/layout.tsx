@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AuthInitializer from "@/component/auth-initializer";
 import ReduxProvider from "@/component/redux-provider";
+import KonamiEgg from "@/component/konami-egg";
 
 export const metadata: Metadata = {
   title: "Gamelog - Track games you've played.",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-on-surface">
         <ReduxProvider>
           <AuthInitializer />
+          <KonamiEgg />
           <main className="grow">{children}</main>
         </ReduxProvider>
       </body>
