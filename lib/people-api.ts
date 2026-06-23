@@ -1,4 +1,5 @@
 import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
+import { fixImageUrl } from "@/lib/fix-image-url";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
@@ -222,10 +223,17 @@ export type FavoriteGameEntry = {
   game: { id: string; title: string; slug: string; coverUrl: string | null; avgRating: number; likeCount: number; logCount: number };
 };
 
+function fixGameCovers<T extends { game: { coverUrl: string | null } }>(items: T[]): T[] {
+  return items.map((item) => ({
+    ...item,
+    game: { ...item.game, coverUrl: fixImageUrl(item.game.coverUrl) },
+  }));
+}
+
 export async function getFavoriteGames(username: string): Promise<FavoriteGameEntry[]> {
   const raw = await peopleRequest<unknown>(`/users/${username}/favorites`);
   const data = unwrap<unknown>(raw);
-  return Array.isArray(data) ? (data as FavoriteGameEntry[]) : [];
+  return fixGameCovers(Array.isArray(data) ? (data as FavoriteGameEntry[]) : []);
 }
 
 export async function setFavoriteGames(gameIds: string[]): Promise<void> {
@@ -246,7 +254,7 @@ export async function getUserGameLogs(
   const raw = await peopleRequest<unknown>(`/users/${username}/games?${qs}`);
   const r = raw as { data?: GameLogEntry[]; pagination?: { hasNext?: boolean } };
   return {
-    items: Array.isArray(r.data) ? r.data : [],
+    items: fixGameCovers(Array.isArray(r.data) ? r.data : []),
     hasNext: r.pagination?.hasNext ?? false,
   };
 }
@@ -275,7 +283,7 @@ export async function getUserWatchlist(
   const raw = await peopleRequest<unknown>(`/users/${username}/watchlist?${qs}`);
   const r = raw as { data?: WatchlistEntry[]; pagination?: { total?: number } };
   return {
-    items: Array.isArray(r.data) ? r.data : [],
+    items: fixGameCovers(Array.isArray(r.data) ? r.data : []),
     total: r.pagination?.total ?? 0,
   };
 }
@@ -288,7 +296,7 @@ export async function getUserReviews(
   if (params.limit) qs.set("limit", String(params.limit));
   const raw = await peopleRequest<unknown>(`/users/${username}/reviews?${qs}`);
   const r = raw as { data?: ReviewEntry[] };
-  return Array.isArray(r.data) ? r.data : [];
+  return fixGameCovers(Array.isArray(r.data) ? r.data : []);
 }
 
 export type LikedGameEntry = {
@@ -306,7 +314,7 @@ export async function getUserLikedGames(
   const raw = await peopleRequest<unknown>(`/users/${username}/liked-games?${qs}`);
   const r = raw as { data?: LikedGameEntry[]; pagination?: { total?: number; hasNext?: boolean } };
   return {
-    items: Array.isArray(r.data) ? r.data : [],
+    items: fixGameCovers(Array.isArray(r.data) ? r.data : []),
     total: r.pagination?.total ?? 0,
     hasNext: r.pagination?.hasNext ?? false,
   };

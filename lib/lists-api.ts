@@ -1,4 +1,5 @@
 import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
+import { fixImageUrl } from "@/lib/fix-image-url";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
@@ -276,7 +277,7 @@ export async function unlikeListComment(commentId: string): Promise<{ isLiked: b
 export function listCoverImages(list: Pick<ListSummary, "items">, count = 4): string[] {
   return list.items
     .slice(0, count)
-    .map((i) => i.game.coverUrl)
+    .map((i) => fixImageUrl(i.game.coverUrl))
     .filter((url): url is string => Boolean(url));
 }
 

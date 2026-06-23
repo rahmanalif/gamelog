@@ -3,6 +3,7 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { getStoredAccessToken, refreshStoredAuth } from "@/lib/auth-session";
+import { fixImageUrl } from "@/lib/fix-image-url";
 import type {
   AddGameInput,
   CreateListReviewInput,
@@ -171,7 +172,19 @@ export const listsApi = createApi({
     }),
     getList: builder.query<ListDetail, string>({
       query: (id) => `/lists/${id}`,
-      transformResponse: (raw: unknown) => unwrapEnvelope<ListDetail>(raw),
+      transformResponse: (raw: unknown) => {
+        const list = unwrapEnvelope<ListDetail>(raw);
+        if (list?.items) {
+          list.items = list.items.map((item) => ({
+            ...item,
+            game: { ...item.game, coverUrl: fixImageUrl(item.game.coverUrl) ?? item.game.coverUrl },
+          }));
+        }
+        if (list?.coverImageUrl) {
+          list.coverImageUrl = fixImageUrl(list.coverImageUrl) ?? list.coverImageUrl;
+        }
+        return list;
+      },
       providesTags: (_result, _error, id) => [{ type: "List", id }],
     }),
     createList: builder.mutation<ListDetail, CreateListInput>({

@@ -1,4 +1,5 @@
 import HeroCta from "@/component/hero-cta";
+import { fixImageUrl } from "@/lib/fix-image-url";
 
 type HeroImageData = {
   gameId: string;
@@ -25,7 +26,7 @@ async function fetchHeroImage(): Promise<HeroImageData> {
 
 export default async function Hero() {
   const heroImage = await fetchHeroImage();
-  const backgroundUrl = heroImage?.imageUrl ?? "/elder1.jpg";
+  const backgroundUrl = fixImageUrl(heroImage?.imageUrl) ?? "/elder1.jpg";
 
   return (
     <section className="relative w-full h-screen min-h-[400px] flex items-center justify-center overflow-hidden">

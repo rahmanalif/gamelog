@@ -100,6 +100,8 @@ export type LogGameInput = {
   containsSpoilers?: boolean;
 };
 
+import { fixImageUrl } from "@/lib/fix-image-url";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ApiEnvelope<T> = {
@@ -226,8 +228,8 @@ function normalizeGameSummary(game: unknown): GameSummary {
     rawgId: typeof record.rawgId === "number" ? record.rawgId : undefined,
     title: String(record.title ?? record.name ?? ""),
     slug: String(record.slug ?? ""),
-    coverImage: (record.coverImage ?? record.coverUrl ?? null) as string | null,
-    backdropImage: (record.backdropImage ?? record.backdropUrl ?? null) as string | null,
+    coverImage: fixImageUrl((record.coverImage ?? record.coverUrl ?? null) as string | null),
+    backdropImage: fixImageUrl((record.backdropImage ?? record.backdropUrl ?? null) as string | null),
     releaseDate: (record.releaseDate ?? null) as string | null,
     genres: getNestedMetaItems(record.genres, "genre").map((genre) => genre.name),
     platforms: getNestedMetaItems(record.platforms, "platform").map((platform) => platform.name),
@@ -249,7 +251,7 @@ function normalizeGameDetail(game: unknown): GameDetail {
     description: (record.description ?? null) as string | null,
     developer: (record.developer ?? getFirstCompanyName(record.developers)) as string | null,
     publisher: (record.publisher ?? getFirstCompanyName(record.publishers)) as string | null,
-    images: Array.isArray(record.images) ? (record.images as string[]) : [],
+    images: Array.isArray(record.images) ? (record.images as string[]).map((u) => fixImageUrl(u) ?? u) : [],
     logCount: toNumber(record.logCount),
     viewCount: toNumber(record.viewCount ?? record.logCount),
     likeCount: toNumber(record.likeCount),
@@ -428,7 +430,7 @@ export async function getRecentReviews(limit = 6, page = 1): Promise<RecentRevie
         id: String(gameRecord.id ?? ''),
         title: String(gameRecord.title ?? ''),
         slug: String(gameRecord.slug ?? ''),
-        coverUrl: (gameRecord.coverUrl ?? null) as string | null,
+        coverUrl: fixImageUrl((gameRecord.coverUrl ?? null) as string | null),
         releaseDate: (gameRecord.releaseDate ?? null) as string | null,
       },
     };
