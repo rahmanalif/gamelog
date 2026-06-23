@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "Gamelog",
+    "build": "Gamelog — a social platform for gamers to track, rate, review, and discover games.",
     "start": "next start",
     "lint": "eslint"
   },

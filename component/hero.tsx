@@ -1,14 +1,38 @@
 import Link from "next/link";
 
-export default function Hero() {
+type HeroImageData = {
+  gameId: string;
+  imageUrl: string;
+  gameTitle: string;
+} | null;
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+
+async function fetchHeroImage(): Promise<HeroImageData> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/site-settings/hero-image`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const payload = data?.data ?? data;
+    if (!payload?.imageUrl) return null;
+    return payload as HeroImageData;
+  } catch {
+    return null;
+  }
+}
+
+export default async function Hero() {
+  const heroImage = await fetchHeroImage();
+  const backgroundUrl = heroImage?.imageUrl ?? "/elder1.jpg";
+
   return (
     <section className="relative w-full h-screen min-h-[400px] flex items-center justify-center overflow-hidden">
-      {/* Background Image with extra darkening */}
-      <div 
+      <div
         className="absolute inset-0 pt-10 z-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-        style={{ backgroundImage: "url('/elder1.jpg')" }}
+        style={{ backgroundImage: `url('${backgroundUrl}')` }}
       >
-        {/* Overlays for depth and text readability */}
         <div className="absolute inset-0 "></div>
         <div className="absolute inset-0 "></div>
       </div>
@@ -19,8 +43,8 @@ export default function Hero() {
           Save those you want to play.<br/>
           Tell your friends what's good.
         </h1>
-        <Link 
-          href="#" 
+        <Link
+          href="#"
           className="inline-block bg-[#00e676] text-[#00210b] font-label-md text-label-md uppercase tracking-widest px-10 py-4 rounded-lg hover:bg-primary transition-all duration-300 transform hover:scale-105 shadow-lg active:scale-95"
         >
           GET STARTED — IT'S FREE
